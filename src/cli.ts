@@ -5,6 +5,7 @@ import { runCompletion } from "./commands/completion.ts";
 import { runDiff } from "./commands/diff.ts";
 import type { EmitOptions } from "./commands/emit.ts";
 import { runRun } from "./commands/run.ts";
+import { runStudio } from "./commands/studio.ts";
 import { loadConfig } from "./config.ts";
 import type { Diagnostic, Severity } from "./core/model.ts";
 import type { ConnectionOptions } from "./db/client.ts";
@@ -306,6 +307,43 @@ const diffCmd = defineCommand({
   },
 });
 
+// ── studio subcommand ─────────────────────────────────────────────────────────
+
+const studioCmd = defineCommand({
+  meta: { name: "studio", description: "Launch the local pgexplain Studio web app." },
+  args: {
+    port: { type: "string", default: "5177", description: "Port to listen on" },
+    host: {
+      type: "string",
+      default: "127.0.0.1",
+      description: "Host to bind (loopback only unless --unsafe-host)",
+    },
+    "no-open": { type: "boolean", description: "Do not open the browser automatically" },
+    "unsafe-host": {
+      type: "boolean",
+      description: "Allow binding a non-loopback host (SSRF/credential risk)",
+    },
+    debug: { type: "boolean", description: "Print stack traces on internal errors" },
+  },
+  async run({ args }) {
+    try {
+      applyGlobalFlags(args);
+      const port = Number(args.port);
+      if (!Number.isInteger(port) || port < 0 || port > 65535) {
+        throw usageError(`Invalid --port '${args.port}'`, "Use a port between 0 and 65535.");
+      }
+      process.exitCode = await runStudio({
+        host: args.host,
+        port,
+        open: !args["no-open"],
+        unsafeHost: !!args["unsafe-host"],
+      });
+    } catch (err) {
+      process.exitCode = handleFatal(err);
+    }
+  },
+});
+
 // ── main (analyze) command ────────────────────────────────────────────────────
 
 const main = defineCommand({
@@ -359,7 +397,9 @@ if (argv[0] === "completion") {
       ? runMain(runCmd, { rawArgs: argv.slice(1) })
       : argv[0] === "diff"
         ? runMain(diffCmd, { rawArgs: argv.slice(1) })
-        : runMain(main, { rawArgs: argv });
+        : argv[0] === "studio"
+          ? runMain(studioCmd, { rawArgs: argv.slice(1) })
+          : runMain(main, { rawArgs: argv });
 
   started.catch((err) => {
     process.exitCode = handleFatal(err);

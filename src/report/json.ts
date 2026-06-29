@@ -8,12 +8,17 @@ export const JSON_SCHEMA_VERSION = 1;
 
 /** Stable, machine-readable report for CI and tooling. */
 export function renderJson(result: AnalysisResult, pretty = true): string {
+  return JSON.stringify(buildReport(result), null, pretty ? 2 : 0);
+}
+
+/** The report object behind `renderJson` — used directly by the Studio HTTP API. */
+export function buildReport(result: AnalysisResult): Record<string, unknown> {
   const { tree, diagnostics, bottlenecks } = result;
 
   const counts: Record<Severity, number> = { error: 0, warn: 0, info: 0 };
   for (const d of diagnostics) counts[d.severity]++;
 
-  const report = {
+  return {
     schemaVersion: JSON_SCHEMA_VERSION,
     verdict: result.verdict,
     worstSeverity: result.worstSeverity,
@@ -39,8 +44,6 @@ export function renderJson(result: AnalysisResult, pretty = true): string {
       })),
     plan: serializeNode(tree.root),
   };
-
-  return JSON.stringify(report, null, pretty ? 2 : 0);
 }
 
 /** Slim node for JSON: normalized fields + metrics + children, never the raw blob. */
