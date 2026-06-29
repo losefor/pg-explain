@@ -10,9 +10,9 @@ const shared: Options = {
   dts: true,
   sourcemap: true,
   minify: false,
-  // pg is an optional, lazily-imported dependency. Keeping it external means a
-  // plan-only install/run never loads it. ponytail: external, not bundled.
-  external: ["pg"],
+  // pg is optional + lazily imported; the studio server deps are native/heavy and
+  // only loaded by `pg-explain studio`. External = resolved at runtime, not bundled.
+  external: ["pg", "better-sqlite3", "hono", "@hono/node-server"],
 };
 
 export default defineConfig([
@@ -27,5 +27,13 @@ export default defineConfig([
     ...shared,
     entry: { index: "src/index.ts" },
     clean: false,
+  },
+  {
+    // The studio server: its own bundle so hono + better-sqlite3 load only when
+    // `pg-explain studio` runs (dynamically imported by URL from the CLI).
+    ...shared,
+    entry: { server: "src/server/start.ts" },
+    clean: false,
+    dts: false,
   },
 ]);
