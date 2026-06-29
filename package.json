@@ -99,5 +99,5 @@
     "access": "public",
     "provenance": true
   },
-  "packageManager": "pnpm@9.7.1"
+  "packageManager": "pnpm@11.9.0"
 }
