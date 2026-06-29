@@ -13,6 +13,7 @@ import { flatten, parseExplainJson } from "./core/parse.ts";
 import { opDiagnostic, opError } from "./diagnostics/catalog.ts";
 import { bySeverity, maxSeverity } from "./diagnostics/diagnostic.ts";
 import { redactPlanTree } from "./input/redact.ts";
+import { analyzeLocks } from "./locks/advisor.ts";
 
 export interface AnalyzeOptions {
   config?: PgExplainConfig;
@@ -20,9 +21,11 @@ export interface AnalyzeOptions {
   statement?: number;
   /** Strip literal values from expressions before analysis (no data leaks downstream). */
   redact?: boolean;
+  /** The originating SQL — enables lock analysis (PGX_LOCK_* findings). */
+  sql?: string;
 }
 
-/** Parse → (redact) → compute metrics → run advisor → attach informational notices. */
+/** Parse → (redact) → compute metrics → run advisor (+lock advisor) → attach notices. */
 export function analyze(input: string, options: AnalyzeOptions = {}): AnalysisResult {
   const trees = parseExplainJson(input);
   const tree = selectStatement(trees, options.statement);
@@ -31,9 +34,10 @@ export function analyze(input: string, options: AnalyzeOptions = {}): AnalysisRe
 
   const result = runAdvisor(tree, options.config ?? DEFAULT_CONFIG);
 
-  const notices = planNotices(tree);
-  if (notices.length) {
-    result.diagnostics = [...result.diagnostics, ...notices].sort(bySeverity);
+  const extra: Diagnostic[] = planNotices(tree);
+  if (options.sql) extra.push(...analyzeLocks(options.sql, tree));
+  if (extra.length) {
+    result.diagnostics = [...result.diagnostics, ...extra].sort(bySeverity);
     result.worstSeverity = result.diagnostics.reduce<Severity | null>(
       (worst, d) => (worst === null ? d.severity : maxSeverity(worst, d.severity)),
       null,
@@ -76,6 +80,7 @@ export { bottlenecks, computeMetrics, executionMs, nodeLabel } from "./core/metr
 export type * from "./core/model.ts";
 export { flatten, parseExplainJson, walk } from "./core/parse.ts";
 export { AppError, scrubCredentials } from "./diagnostics/diagnostic.ts";
+export { analyzeLocks } from "./locks/advisor.ts";
 export { JSON_SCHEMA_VERSION } from "./report/json.ts";
 export { FORMATS, type Format, isFormat, type RenderOptions, render } from "./report/render.ts";
 export { ExitCode } from "./util/exit.ts";

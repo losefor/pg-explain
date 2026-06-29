@@ -61,7 +61,11 @@ export async function runRun(args: RunArgs): Promise<ExitCode> {
     );
   }
 
-  const analysis = analyze(result.json, { config: args.config, redact: args.redact });
+  const analysis = analyze(result.json, {
+    config: args.config,
+    redact: args.redact,
+    sql: statement,
+  });
   return emit(analysis, args);
 }
 

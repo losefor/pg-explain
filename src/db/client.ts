@@ -138,6 +138,36 @@ function msInt(ms: number): number {
   return Math.max(0, Math.floor(ms));
 }
 
+/**
+ * Connect, run a single read-only SELECT under a statement_timeout, and return its
+ * rows. Used for live-lock introspection and schema/stats lookups (never mutates).
+ */
+export async function queryReadOnly<T = Record<string, unknown>>(
+  connection: ConnectionOptions,
+  sql: string,
+  params: unknown[] = [],
+  timeoutMs = 10_000,
+): Promise<T[]> {
+  const ca = connection.sslrootcert
+    ? await readFile(connection.sslrootcert, "utf8").catch(() => undefined)
+    : undefined;
+  const client = await newClient(buildClientConfig(connection, ca));
+  try {
+    await client.connect();
+  } catch (err) {
+    throw mapConnectError(err);
+  }
+  try {
+    await client.query(`SET statement_timeout = ${msInt(timeoutMs)}`);
+    const res = await client.query({ text: sql, values: params });
+    return res.rows as T[];
+  } catch (err) {
+    throw mapQueryError(err);
+  } finally {
+    await client.end().catch(() => {});
+  }
+}
+
 async function fetchVersionNum(client: Client): Promise<number> {
   try {
     const res = await client.query<{ server_version_num: string }>("SHOW server_version_num");
