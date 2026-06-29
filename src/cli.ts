@@ -36,6 +36,11 @@ const outputArgs = {
   },
   tldr: { type: "boolean", description: "Summary + findings only (no plan tree)" },
   redact: { type: "boolean", description: "Strip literal values from expressions (safe to share)" },
+  open: {
+    type: "boolean",
+    description: "Open the HTML report in your browser (default: on when interactive)",
+  },
+  "no-open": { type: "boolean", description: "Never open the HTML report in the browser" },
   ascii: { type: "boolean", description: "Use ASCII tree glyphs instead of Unicode" },
   color: { type: "string", default: "auto", description: "auto | always | never" },
   "no-color": { type: "boolean", description: "Disable color (same as --color never)" },
@@ -71,6 +76,12 @@ function emitOptionsFrom(args: Args): EmitOptions {
   if (args.output) opts.output = args.output;
   const failOn = resolveFailOn(args);
   if (failOn) opts.failOn = failOn;
+  // Auto-open HTML when interactive; --open forces it, --no-open / CI disables it.
+  opts.openHtml = args["no-open"]
+    ? false
+    : args.open
+      ? true
+      : Boolean(process.stdout.isTTY) && !process.env.CI;
   return opts;
 }
 

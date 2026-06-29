@@ -180,12 +180,20 @@ Choose with `-f`/`--format` (default `terminal`); write to a file with `-o`/`--o
 | `terminal` | Color, severity heat, and proportional self-time bars for interactive use. |
 | `markdown` | The headline shareable deliverable — paste into a PR or ticket. |
 | `json` | Stable, machine-readable (`schemaVersion = 1`). |
-| `html` | Single self-contained file (no external assets). |
+| `html` | Single self-contained file (no external assets). Auto-opens in your browser when run interactively. |
 | `text` | Plain text, no escapes — good for logs. |
 
 `diff` supports `terminal`, `markdown`, and `json`.
 
-Shared output flags: `--tldr` (summary + findings, no plan tree), `--redact` (strip literal values so the report is safe to share), `--ascii` (ASCII tree glyphs), `--color auto|always|never` / `--no-color`, `--compact` (compact JSON), `--config <path>`, `-q/--quiet`, `--verbose`, `--debug`.
+When you run `-f html` in an interactive terminal, the report opens in your default browser automatically: with `-o report.html` that file is opened, otherwise a temp file is written and opened. Auto-open is off when output is piped/redirected or `CI` is set; use `--open` to force it (e.g. into a file in CI) and `--no-open` to disable it.
+
+```bash
+pg-explain plan.json -f html -o report.html   # writes the file and opens it
+pg-explain plan.json -f html                   # writes a temp file and opens it
+pg-explain plan.json -f html > report.html     # redirected → no open, HTML to stdout
+```
+
+Shared output flags: `--tldr` (summary + findings, no plan tree), `--redact` (strip literal values so the report is safe to share), `--open` / `--no-open` (HTML browser opening), `--ascii` (ASCII tree glyphs), `--color auto|always|never` / `--no-color`, `--compact` (compact JSON), `--config <path>`, `-q/--quiet`, `--verbose`, `--debug`.
 
 ---
 
