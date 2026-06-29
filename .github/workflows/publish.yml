@@ -1,0 +1,45 @@
+name: Publish (manual)
+
+# Direct publish of the current package.json version, with a signed provenance
+# attestation. Use this for the first release (0.1.0) and any out-of-band publish.
+# Routine releases are driven by changesets via release.yml.
+on:
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: "Pack and validate without publishing"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+  id-token: write # required for npm provenance (OIDC → Sigstore)
+
+jobs:
+  publish:
+    name: Publish to npm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      # `pnpm publish` runs prepublishOnly (build + typecheck + lint + test) first,
+      # so a broken artifact can never ship. Provenance comes from --provenance +
+      # publishConfig.provenance and the id-token permission above.
+      - name: Publish
+        run: pnpm publish --provenance --access public --no-git-checks ${{ inputs.dry-run && '--dry-run' || '' }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_CONFIG_PROVENANCE: "true"

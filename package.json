@@ -18,12 +18,12 @@
   "author": "",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/OWNER/pgexplain.git"
+    "url": "git+https://github.com/losefor/pg-explain"
   },
   "bugs": {
-    "url": "https://github.com/OWNER/pgexplain/issues"
+    "url": "https://github.com/losefor/pg-explain/issues"
   },
-  "homepage": "https://github.com/OWNER/pgexplain#readme",
+  "homepage": "https://github.com/losefor/pg-explain#readme",
   "type": "module",
   "engines": {
     "node": ">=22"
