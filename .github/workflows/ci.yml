@@ -44,8 +44,14 @@ jobs:
       - name: Biome check
         run: pnpm run lint
 
-      - name: Typecheck
+      - name: Typecheck (engine + server)
         run: pnpm run typecheck
+
+      - name: Typecheck (web UI)
+        run: pnpm --filter @pgexplain/web run typecheck
+
+      - name: Build web UI
+        run: pnpm run build:web
 
   test:
     name: Test (Node ${{ matrix.node }})

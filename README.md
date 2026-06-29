@@ -67,6 +67,34 @@ Point at a directory to analyze every plan in it (batch mode):
 pg-explain ./plans/
 ```
 
+Or launch the local **Studio** — a GUI for everything the CLI does:
+
+```sh
+pg-explain studio        # opens http://127.0.0.1:5177 in your browser
+```
+
+---
+
+## Studio (local web UI)
+
+`pg-explain studio` starts a local, single-user web app (binds `127.0.0.1`, no auth) that
+mirrors the CLI with a friendlier surface. It ships inside the package, so `npx pgexplain studio`
+just works — the PostgreSQL driver and the UI are only loaded on demand.
+
+- **Analyze** a pasted `EXPLAIN (FORMAT JSON)` plan, or **Run** a query (connect → EXPLAIN-only,
+  rollback-wrapped, read-only; non-`SELECT` refused unless forced).
+- **Findings** as plain-language cards (what / why / fix + copy-paste commands + docs links).
+- **Lock advisor** — static warnings (rewrites, missing `CONCURRENTLY`, unindexed `UPDATE/DELETE`,
+  unbounded `FOR UPDATE`, …) plus a **🔒 Live locks** view of current blocking chains.
+- Interactive **plan tree** (heat-colored by self-time), **bottlenecks**, raw JSON.
+- **History** of every run (SQLite under `~/.pgexplain`), **Compare** any two runs (structured
+  diff), and **Export** to Markdown / HTML / JSON.
+- **Saved connections** and a **Settings** page to tune advisor thresholds (applied live).
+
+Flags: `pg-explain studio [--port 5177] [--host 127.0.0.1] [--no-open] [--unsafe-host]`.
+Binding a non-loopback host requires `--unsafe-host` (the studio can reach arbitrary databases,
+so exposing it is an SSRF/credential risk). Set `PGEXPLAIN_DATA_DIR` to relocate the local store.
+
 ---
 
 ## Example output
