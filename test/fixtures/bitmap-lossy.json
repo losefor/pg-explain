@@ -1,0 +1,57 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Aggregate",
+      "Strategy": "Plain",
+      "Partial Mode": "Simple",
+      "Plan Rows": 1,
+      "Plan Width": 8,
+      "Startup Cost": 45210.0,
+      "Total Cost": 45210.01,
+      "Actual Startup Time": 412.7,
+      "Actual Total Time": 412.8,
+      "Actual Rows": 1,
+      "Actual Loops": 1,
+      "Plans": [
+        {
+          "Node Type": "Bitmap Heap Scan",
+          "Parent Relationship": "Outer",
+          "Relation Name": "events",
+          "Alias": "events",
+          "Plan Rows": 420000,
+          "Plan Width": 8,
+          "Startup Cost": 4820.0,
+          "Total Cost": 44100.0,
+          "Actual Startup Time": 38.2,
+          "Actual Total Time": 360.5,
+          "Actual Rows": 415000,
+          "Actual Loops": 1,
+          "Recheck Cond": "(occurred_at >= '2026-01-01'::date)",
+          "Rows Removed by Index Recheck": 86000,
+          "Exact Heap Blocks": 1200,
+          "Lossy Heap Blocks": 24500,
+          "Shared Hit Blocks": 800,
+          "Shared Read Blocks": 24900,
+          "Plans": [
+            {
+              "Node Type": "Bitmap Index Scan",
+              "Parent Relationship": "Outer",
+              "Index Name": "events_occurred_at_idx",
+              "Plan Rows": 420000,
+              "Plan Width": 0,
+              "Startup Cost": 0.0,
+              "Total Cost": 4715.0,
+              "Actual Startup Time": 35.1,
+              "Actual Total Time": 35.1,
+              "Actual Rows": 415000,
+              "Actual Loops": 1,
+              "Index Cond": "(occurred_at >= '2026-01-01'::date)"
+            }
+          ]
+        }
+      ]
+    },
+    "Planning Time": 0.31,
+    "Execution Time": 413.4
+  }
+]

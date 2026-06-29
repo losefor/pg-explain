@@ -1,0 +1,30 @@
+version: 2
+updates:
+  # npm dependencies (pnpm lockfile is read natively by the npm ecosystem).
+  - package-ecosystem: npm
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    groups:
+      # One PR per week for routine dev-tooling bumps to cut review noise.
+      dev-dependencies:
+        dependency-type: development
+        update-types:
+          - minor
+          - patch
+    labels:
+      - dependencies
+
+  # GitHub Actions used in the workflows above (pinned to majors; this keeps
+  # those majors current and surfaces new majors as PRs).
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - github-actions

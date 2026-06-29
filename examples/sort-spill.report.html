@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pg-explain report</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 15px/1.5 -apple-system, system-ui, sans-serif; margin: 0; padding: 2rem; max-width: 980px; margin-inline: auto; }
+  h1 { font-size: 1.4rem; } h2 { font-size: 1.1rem; margin-top: 2rem; border-bottom: 1px solid #8884; padding-bottom: .3rem; }
+  .verdict { padding: .75rem 1rem; border-left: 4px solid #888; background: #8881; border-radius: 4px; }
+  .verdict.sev-error { border-color: #e5484d; } .verdict.sev-warn { border-color: #f5a623; } .verdict.sev-info { border-color: #4493f8; }
+  table { border-collapse: collapse; width: 100%; } td, th { text-align: left; padding: .3rem .6rem; border-bottom: 1px solid #8883; }
+  .tree { overflow-x: auto; } .node { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; font-size: 13px; }
+  .glyph { color: #8888; } .meta { color: #888; }
+  .node.hot .label { color: #e5484d; font-weight: 700; } .node.warm .label { color: #f5a623; } .node.cold .label { opacity: .6; }
+  .finding { border: 1px solid #8883; border-radius: 6px; padding: 1rem; margin: 1rem 0; }
+  .finding .tag { font-size: .75rem; font-weight: 700; padding: .1rem .5rem; border-radius: 3px; color: #fff; }
+  .sev-error .tag { background: #e5484d; } .sev-warn .tag { background: #f5a623; } .sev-info .tag { background: #4493f8; }
+  .finding code, pre { font-family: ui-monospace, monospace; font-size: 13px; }
+  pre { background: #8881; padding: .6rem .8rem; border-radius: 4px; overflow-x: auto; }
+  .label-cmd { color: #888; font-size: .85rem; margin-top: .5rem; }
+  .ok { color: #2e7d32; }
+</style>
+</head>
+<body>
+<h1>pg-explain report</h1>
+<div class="verdict sev-warn">2 warnings, 1 note — top cost: Sort (57% of time). Total 982.3 ms.</div>
+
+<h2>Summary</h2>
+<table>
+  <tr><th>Planning time</th><td>0.550 ms</td></tr>
+  <tr><th>Execution time</th><td>982.3 ms</td></tr>
+  
+  <tr><th>Findings</th><td>4</td></tr>
+</table>
+
+<h2>Plan tree</h2>
+<div class="tree">
+<div class="node cold"><span class="glyph"></span><span class="label">Limit</span> <span class="meta">rows=100 · self 0.100 ms</span></div>
+<div class="node hot"><span class="glyph">└─ </span><span class="label">Sort</span> <span class="meta">rows=100 (est 2,000,000, 20000× over) · self 560.5 ms (57%)</span></div>
+<div class="node warm"><span class="glyph">   └─ </span><span class="label">Seq Scan on events</span> <span class="meta">rows=2,000,000 · self 420.0 ms (43%)</span></div>
+</div>
+
+<h2>Findings</h2>
+<div class="finding sev-warn">
+  <p><span class="tag">Warning</span> <strong>Sequential scan on events (2,000,000 rows)</strong> <code>PGX_SEQ_SCAN_LARGE</code> <span class="meta">on events</span></p>
+  <p><strong>What:</strong> Postgres read events sequentially, scanning roughly 2,000,000 rows.</p>
+  <p><strong>Why:</strong> No index condition narrowed the scan, so the whole relation was read.</p>
+  <p><strong>Fix:</strong> Add an index covering the WHERE/JOIN predicate on events so Postgres can skip non-matching rows. If the query genuinely needs most of the table, the seq scan is correct — reduce the rows touched instead.</p>
+  <ul><li>Identify the selective columns in the WHERE/JOIN predicate.</li><li>Ensure they are sargable (no function-wrapping or implicit casts on the column).</li><li>If selectivity is low, a partial index (WHERE …) may be better.</li></ul>
+  <div class="label-cmd">Index the predicate columns</div><pre><code>CREATE INDEX ON events (&lt;predicate columns&gt;);</code></pre>
+  <p>📖 <a href="https://www.postgresql.org/docs/current/indexes-intro.html">PostgreSQL docs</a></p>
+</div>
+<div class="finding sev-warn">
+  <p><span class="tag">Warning</span> <strong>Sort spilled to disk using 180.0 MiB of temp space</strong> <code>PGX_SORT_SPILL_DISK</code></p>
+  <p><strong>What:</strong> The Sort node ran an external merge sort on disk (external merge) using 180.0 MiB of temp space, because the data exceeded work_mem.</p>
+  <p><strong>Why:</strong> work_mem was too small to hold the sort set, so Postgres wrote sorted runs to temporary files and merged them — adding temp-file I/O that an in-memory sort avoids.</p>
+  <p><strong>Fix:</strong> Raise work_mem for this query so the sort stays in memory, e.g. SET work_mem = '400MB' at session or role scope (do NOT raise it globally without accounting for max_connections — each connection can allocate work_mem several times over). Alternatively, add an index on (events.created_at DESC, events.user_id) so rows arrive pre-sorted and the Sort node disappears.</p>
+  <ul><li>Set work_mem at session or role scope for this workload, not cluster-wide.</li><li>Size it above the spilled footprint (~180.0 MiB); 400MB leaves headroom.</li><li>Or add an index on (events.created_at DESC, events.user_id) so the sort is satisfied by an ordered scan and removed entirely.</li></ul>
+  <div class="label-cmd">Raise work_mem for this session</div><pre><code>SET work_mem = '400MB';</code></pre><div class="label-cmd">Or set it per role</div><pre><code>ALTER ROLE &lt;role&gt; SET work_mem = '400MB';</code></pre><div class="label-cmd">Or add an index matching the sort key</div><pre><code>CREATE INDEX ON &lt;table&gt; (events.created_at DESC, events.user_id);</code></pre>
+  <p>📖 <a href="https://www.postgresql.org/docs/current/runtime-config-resource.html#GUC-WORK-MEM">PostgreSQL docs</a></p>
+</div>
+<div class="finding sev-info">
+  <p><span class="tag">Note</span> <strong>20,000x row overestimate</strong> <code>PGX_ROW_MISESTIMATE</code></p>
+  <p><strong>What:</strong> Postgres estimated 2,000,000 rows but 100 were produced — a 20,000x overestimate.</p>
+  <p><strong>Why:</strong> The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).</p>
+  <p><strong>Fix:</strong> Refresh and sharpen statistics for the underlying table: run ANALYZE &lt;relation&gt;, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly.</p>
+  <ul><li>Refresh table statistics first; this alone often fixes the estimate.</li><li>If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.</li><li>If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence.</li></ul>
+  <div class="label-cmd">Refresh statistics</div><pre><code>ANALYZE &lt;relation&gt;;</code></pre><div class="label-cmd">Raise per-column statistics target</div><pre><code>ALTER TABLE &lt;relation&gt; ALTER COLUMN &lt;column&gt; SET STATISTICS 1000;
+ANALYZE &lt;relation&gt;;</code></pre><div class="label-cmd">Add extended statistics for correlated columns</div><pre><code>CREATE STATISTICS &lt;stats_name&gt; (dependencies, ndistinct) ON &lt;col_a&gt;, &lt;col_b&gt; FROM &lt;relation&gt;;
+ANALYZE &lt;relation&gt;;</code></pre>
+  <p>📖 <a href="https://www.postgresql.org/docs/current/planner-stats.html">PostgreSQL docs</a></p>
+</div>
+<div class="finding sev-info">
+  <p><span class="tag">Note</span> <strong>No BUFFERS data — cache/I/O analysis skipped</strong> <code>PGX_NO_BUFFERS</code></p>
+  <p><strong>What:</strong> Buffer counters are absent, so cache-hit ratio and I/O findings cannot be computed.</p>
+  <p><strong>Why:</strong> The plan was captured without BUFFERS.</p>
+  <p><strong>Fix:</strong> Add BUFFERS to surface shared/temp block usage and the cache-hit ratio.</p>
+  
+  <div class="label-cmd">Capture buffers</div><pre><code>EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON) &lt;query&gt;;</code></pre>
+  
+</div>
+</body>
+</html>

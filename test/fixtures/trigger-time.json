@@ -1,0 +1,52 @@
+[
+  {
+    "Plan": {
+      "Node Type": "ModifyTable",
+      "Operation": "Insert",
+      "Relation Name": "order_items",
+      "Alias": "order_items",
+      "Plan Rows": 50000,
+      "Plan Width": 0,
+      "Startup Cost": 0.0,
+      "Total Cost": 1250.0,
+      "Actual Startup Time": 0.0,
+      "Actual Total Time": 78.4,
+      "Actual Rows": 0,
+      "Actual Loops": 1,
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Parent Relationship": "Member",
+          "Relation Name": "staging_order_items",
+          "Alias": "staging_order_items",
+          "Plan Rows": 50000,
+          "Plan Width": 32,
+          "Startup Cost": 0.0,
+          "Total Cost": 1000.0,
+          "Actual Startup Time": 0.02,
+          "Actual Total Time": 22.1,
+          "Actual Rows": 50000,
+          "Actual Loops": 1
+        }
+      ]
+    },
+    "Triggers": [
+      {
+        "Trigger Name": "RI_ConstraintTrigger_c_16450",
+        "Constraint Name": "order_items_order_id_fkey",
+        "Relation": "order_items",
+        "Calls": 50000,
+        "Time": 38.2
+      },
+      {
+        "Trigger Name": "RI_ConstraintTrigger_c_16455",
+        "Constraint Name": "order_items_product_id_fkey",
+        "Relation": "order_items",
+        "Calls": 50000,
+        "Time": 2.1
+      }
+    ],
+    "Planning Time": 0.31,
+    "Execution Time": 120.0
+  }
+]

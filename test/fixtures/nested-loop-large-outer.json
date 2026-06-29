@@ -1,0 +1,52 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Nested Loop",
+      "Join Type": "Inner",
+      "Plan Rows": 50,
+      "Plan Width": 24,
+      "Startup Cost": 0.42,
+      "Total Cost": 75000.0,
+      "Actual Startup Time": 0.08,
+      "Actual Total Time": 4200.0,
+      "Actual Rows": 48000,
+      "Actual Loops": 1,
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Parent Relationship": "Outer",
+          "Relation Name": "events",
+          "Alias": "e",
+          "Plan Rows": 50,
+          "Plan Width": 16,
+          "Startup Cost": 0.0,
+          "Total Cost": 1800.0,
+          "Actual Startup Time": 0.02,
+          "Actual Total Time": 95.0,
+          "Actual Rows": 50000,
+          "Actual Loops": 1,
+          "Filter": "(kind = 'click'::text)",
+          "Rows Removed by Filter": 2000
+        },
+        {
+          "Node Type": "Index Scan",
+          "Parent Relationship": "Inner",
+          "Relation Name": "users",
+          "Alias": "u",
+          "Index Name": "users_pkey",
+          "Index Cond": "(u.id = e.user_id)",
+          "Plan Rows": 1,
+          "Plan Width": 8,
+          "Startup Cost": 0.42,
+          "Total Cost": 1.46,
+          "Actual Startup Time": 0.07,
+          "Actual Total Time": 0.08,
+          "Actual Rows": 1,
+          "Actual Loops": 50000
+        }
+      ]
+    },
+    "Planning Time": 0.55,
+    "Execution Time": 4250.0
+  }
+]

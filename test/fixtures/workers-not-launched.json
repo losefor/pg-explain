@@ -1,0 +1,71 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Aggregate",
+      "Strategy": "Plain",
+      "Partial Mode": "Finalize",
+      "Plan Rows": 1,
+      "Plan Width": 8,
+      "Startup Cost": 125000.0,
+      "Total Cost": 125000.01,
+      "Actual Startup Time": 980.2,
+      "Actual Total Time": 980.3,
+      "Actual Rows": 1,
+      "Actual Loops": 1,
+      "Plans": [
+        {
+          "Node Type": "Gather",
+          "Parent Relationship": "Outer",
+          "Partial Mode": "Simple",
+          "Plan Rows": 4,
+          "Plan Width": 8,
+          "Startup Cost": 124000.0,
+          "Total Cost": 124999.0,
+          "Actual Startup Time": 12.3,
+          "Actual Total Time": 980.1,
+          "Actual Rows": 2,
+          "Actual Loops": 1,
+          "Workers Planned": 4,
+          "Workers Launched": 1,
+          "Single Copy": false,
+          "Plans": [
+            {
+              "Node Type": "Aggregate",
+              "Strategy": "Plain",
+              "Partial Mode": "Partial",
+              "Parent Relationship": "Outer",
+              "Plan Rows": 1,
+              "Plan Width": 8,
+              "Startup Cost": 123000.0,
+              "Total Cost": 123000.01,
+              "Actual Startup Time": 975.0,
+              "Actual Total Time": 975.0,
+              "Actual Rows": 1,
+              "Actual Loops": 2,
+              "Plans": [
+                {
+                  "Node Type": "Parallel Seq Scan",
+                  "Parent Relationship": "Outer",
+                  "Relation Name": "events",
+                  "Alias": "events",
+                  "Plan Rows": 1875000,
+                  "Plan Width": 8,
+                  "Startup Cost": 0.0,
+                  "Total Cost": 118000.0,
+                  "Actual Startup Time": 0.05,
+                  "Actual Total Time": 720.0,
+                  "Actual Rows": 3750000,
+                  "Actual Loops": 2,
+                  "Filter": "(created_at > '2026-01-01'::date)",
+                  "Rows Removed by Filter": 1250000
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    "Planning Time": 0.61,
+    "Execution Time": 981.4
+  }
+]

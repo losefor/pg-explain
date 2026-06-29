@@ -1,0 +1,70 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Hash Join",
+      "Parent Relationship": "Outer",
+      "Join Type": "Inner",
+      "Plan Rows": 1200000,
+      "Plan Width": 24,
+      "Startup Cost": 41000.0,
+      "Total Cost": 195000.0,
+      "Actual Startup Time": 850.0,
+      "Actual Total Time": 2400.0,
+      "Actual Rows": 1180000,
+      "Actual Loops": 1,
+      "Hash Cond": "(o.customer_id = c.id)",
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Parent Relationship": "Outer",
+          "Relation Name": "orders",
+          "Alias": "o",
+          "Plan Rows": 1200000,
+          "Plan Width": 16,
+          "Startup Cost": 0.0,
+          "Total Cost": 22000.0,
+          "Actual Startup Time": 0.02,
+          "Actual Total Time": 320.0,
+          "Actual Rows": 1200000,
+          "Actual Loops": 1
+        },
+        {
+          "Node Type": "Hash",
+          "Parent Relationship": "Inner",
+          "Plan Rows": 80000,
+          "Plan Width": 12,
+          "Startup Cost": 18000.0,
+          "Total Cost": 18000.0,
+          "Actual Startup Time": 800.0,
+          "Actual Total Time": 800.0,
+          "Actual Rows": 2000000,
+          "Actual Loops": 1,
+          "Hash Buckets": 65536,
+          "Original Hash Buckets": 65536,
+          "Hash Batches": 8,
+          "Original Hash Batches": 1,
+          "Peak Memory Usage": 32768,
+          "Disk Usage": 98304,
+          "Plans": [
+            {
+              "Node Type": "Seq Scan",
+              "Parent Relationship": "Outer",
+              "Relation Name": "customers",
+              "Alias": "c",
+              "Plan Rows": 80000,
+              "Plan Width": 12,
+              "Startup Cost": 0.0,
+              "Total Cost": 18000.0,
+              "Actual Startup Time": 0.03,
+              "Actual Total Time": 450.0,
+              "Actual Rows": 2000000,
+              "Actual Loops": 1
+            }
+          ]
+        }
+      ]
+    },
+    "Planning Time": 0.6,
+    "Execution Time": 2410.0
+  }
+]

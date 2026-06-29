@@ -1,0 +1,51 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Limit",
+      "Plan Rows": 100,
+      "Plan Width": 64,
+      "Startup Cost": 185000.0,
+      "Total Cost": 185000.25,
+      "Actual Startup Time": 980.4,
+      "Actual Total Time": 980.6,
+      "Actual Rows": 100,
+      "Actual Loops": 1,
+      "Plans": [
+        {
+          "Node Type": "Sort",
+          "Parent Relationship": "Outer",
+          "Plan Rows": 2000000,
+          "Plan Width": 64,
+          "Startup Cost": 185000.0,
+          "Total Cost": 190000.0,
+          "Actual Startup Time": 980.3,
+          "Actual Total Time": 980.5,
+          "Actual Rows": 100,
+          "Actual Loops": 1,
+          "Sort Key": ["events.created_at DESC", "events.user_id"],
+          "Sort Method": "external merge",
+          "Sort Space Used": 184320,
+          "Sort Space Type": "Disk",
+          "Plans": [
+            {
+              "Node Type": "Seq Scan",
+              "Parent Relationship": "Outer",
+              "Relation Name": "events",
+              "Alias": "events",
+              "Plan Rows": 2000000,
+              "Plan Width": 64,
+              "Startup Cost": 0.0,
+              "Total Cost": 60000.0,
+              "Actual Startup Time": 0.1,
+              "Actual Total Time": 420.0,
+              "Actual Rows": 2000000,
+              "Actual Loops": 1
+            }
+          ]
+        }
+      ]
+    },
+    "Planning Time": 0.55,
+    "Execution Time": 982.3
+  }
+]

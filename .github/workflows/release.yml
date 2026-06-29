@@ -1,0 +1,61 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+concurrency:
+  group: release-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write # changesets/action opens the "Version Packages" PR and pushes tags
+  pull-requests: write # ...and manages that PR
+  id-token: write # required for npm publish with provenance (OIDC)
+
+jobs:
+  release:
+    name: Version & publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # Full history so changesets can read tags/changelog correctly.
+          fetch-depth: 0
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          # Configures the registry + auth so `pnpm publish` can mint provenance.
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      # changesets/action either:
+      #   - opens/updates a "Version Packages" PR when changesets are pending, or
+      #   - runs `publish` once that PR is merged and a release is due.
+      # `publish` calls `pnpm publish`, which triggers `prepublishOnly`
+      # (build + typecheck + lint + test) and publishes with provenance because
+      # package.json#publishConfig sets { access: public, provenance: true }.
+      - name: Create release PR or publish
+        uses: changesets/action@v1
+        with:
+          version: pnpm run version
+          publish: pnpm publish --no-git-checks
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Create an automation token at npmjs.com (Account -> Access Tokens ->
+          # "Automation"), then add it to the repo as a secret named NPM_TOKEN
+          # (Settings -> Secrets and variables -> Actions). Provenance also requires
+          # the `id-token: write` permission set above and a public package.
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

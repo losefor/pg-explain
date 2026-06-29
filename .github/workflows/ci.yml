@@ -1,0 +1,121 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  # Heavy testcontainers integration suite runs nightly and on demand.
+  schedule:
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+
+# Cancel superseded runs on the same ref to save CI minutes.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  # Never let a postinstall script pull `pg` (an optionalDependency) implicitly
+  # break a frozen install; we install it explicitly where the integration job needs it.
+  CI: "true"
+
+jobs:
+  lint:
+    name: Lint & typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Biome check
+        run: pnpm run lint
+
+      - name: Typecheck
+        run: pnpm run typecheck
+
+  test:
+    name: Test (Node ${{ matrix.node }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node ${{ matrix.node }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      - name: Unit tests
+        run: pnpm run test
+
+      # Exercise the published CLI shape against a real fixture. Findings alone do
+      # not change the exit code (only --strict / --fail-on do), so a clean exit 0
+      # proves the bundle parses, analyzes, and renders JSON end to end.
+      - name: Build smoke test (analyze fixture -> JSON, expect exit 0)
+        run: node dist/cli.js test/fixtures/seq-scan-large.json -f json
+
+  integration:
+    name: Integration (testcontainers + PostgreSQL)
+    # Docker-enabled GitHub-hosted runner; testcontainers needs a working Docker daemon.
+    runs-on: ubuntu-latest
+    # Skip the full heavy matrix on routine PR pushes; PRs get a single PG smoke
+    # (see the `if` on the steps below). The full suite runs on push/schedule/dispatch.
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm run build
+
+      # On pull requests, run only a single quick PostgreSQL smoke to keep PR CI
+      # fast: spin up the smallest container set the suite supports via a focused run.
+      - name: PG smoke (pull requests only)
+        if: github.event_name == 'pull_request'
+        run: pnpm run test:integration
+        env:
+          # Keep PR integration light: one PG image, no version sweep.
+          PGEXPLAIN_IT_PG_VERSIONS: "16"
+
+      # On push to main, the nightly schedule, and manual dispatch, run the full
+      # heavy integration suite (all supported PostgreSQL versions).
+      - name: Full integration suite
+        if: github.event_name != 'pull_request'
+        run: pnpm run test:integration

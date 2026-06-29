@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "es2023",
+    "lib": ["es2023"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "moduleDetection": "force",
+    "allowImportingTsExtensions": true,
+    "ignoreDeprecations": "6.0",
+    "types": ["node"],
+
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "exactOptionalPropertyTypes": false,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+
+    "declaration": true,
+    "sourceMap": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true
+  },
+  "include": ["src", "test", "tsup.config.ts", "vitest.config.ts"],
+  "exclude": ["dist", "node_modules"]
+}

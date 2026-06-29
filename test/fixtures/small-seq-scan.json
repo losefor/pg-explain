@@ -1,0 +1,20 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Seq Scan",
+      "Relation Name": "small_lookup",
+      "Alias": "small_lookup",
+      "Plan Rows": 50,
+      "Plan Width": 8,
+      "Startup Cost": 0.0,
+      "Total Cost": 12.0,
+      "Actual Startup Time": 0.01,
+      "Actual Total Time": 0.05,
+      "Actual Rows": 50,
+      "Actual Loops": 1,
+      "Shared Hit Blocks": 1
+    },
+    "Planning Time": 0.1,
+    "Execution Time": 0.12
+  }
+]

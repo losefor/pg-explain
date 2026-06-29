@@ -1,0 +1,47 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Aggregate",
+      "Strategy": "Plain",
+      "Partial Mode": "Simple",
+      "Plan Rows": 1,
+      "Plan Width": 8,
+      "Startup Cost": 250000.0,
+      "Total Cost": 250000.01,
+      "Plans": [
+        {
+          "Node Type": "Nested Loop",
+          "Parent Relationship": "Outer",
+          "Join Type": "Inner",
+          "Plan Rows": 25000000,
+          "Plan Width": 16,
+          "Startup Cost": 0.0,
+          "Total Cost": 187500.0,
+          "Plans": [
+            {
+              "Node Type": "Seq Scan",
+              "Parent Relationship": "Outer",
+              "Relation Name": "customers",
+              "Alias": "c",
+              "Plan Rows": 5000,
+              "Plan Width": 8,
+              "Startup Cost": 0.0,
+              "Total Cost": 100.0
+            },
+            {
+              "Node Type": "Seq Scan",
+              "Parent Relationship": "Inner",
+              "Relation Name": "orders",
+              "Alias": "o",
+              "Plan Rows": 5000,
+              "Plan Width": 8,
+              "Startup Cost": 0.0,
+              "Total Cost": 100.0
+            }
+          ]
+        }
+      ]
+    },
+    "Planning Time": 0.35
+  }
+]

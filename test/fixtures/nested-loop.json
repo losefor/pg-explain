@@ -1,0 +1,50 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Nested Loop",
+      "Join Type": "Inner",
+      "Plan Rows": 100,
+      "Plan Width": 16,
+      "Startup Cost": 0.5,
+      "Total Cost": 5000.0,
+      "Actual Startup Time": 0.05,
+      "Actual Total Time": 180.0,
+      "Actual Rows": 20000,
+      "Actual Loops": 1,
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Parent Relationship": "Outer",
+          "Relation Name": "customers",
+          "Alias": "c",
+          "Plan Rows": 20000,
+          "Plan Width": 8,
+          "Startup Cost": 0.0,
+          "Total Cost": 400.0,
+          "Actual Startup Time": 0.01,
+          "Actual Total Time": 12.0,
+          "Actual Rows": 20000,
+          "Actual Loops": 1
+        },
+        {
+          "Node Type": "Index Scan",
+          "Parent Relationship": "Inner",
+          "Relation Name": "orders",
+          "Alias": "o",
+          "Index Name": "orders_customer_id_idx",
+          "Index Cond": "(o.customer_id = c.id)",
+          "Plan Rows": 1,
+          "Plan Width": 8,
+          "Startup Cost": 0.1,
+          "Total Cost": 0.2,
+          "Actual Startup Time": 0.005,
+          "Actual Total Time": 0.007,
+          "Actual Rows": 1,
+          "Actual Loops": 20000
+        }
+      ]
+    },
+    "Planning Time": 0.3,
+    "Execution Time": 181.5
+  }
+]

@@ -1,0 +1,999 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`renderers (snapshot) > cost-only.json → json 1`] = `
+"{
+  "schemaVersion": 1,
+  "verdict": "1 warning. Cost-only plan (no timing).",
+  "worstSeverity": "warn",
+  "summary": {
+    "planningTimeMs": null,
+    "executionTimeMs": null,
+    "hasAnalyze": false,
+    "hasBuffers": false,
+    "nodeCount": 1,
+    "findings": {
+      "error": 0,
+      "warn": 1,
+      "info": 0
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "PGX_SEQ_SCAN_LARGE",
+      "domain": "plan",
+      "severity": "warn",
+      "title": "Sequential scan on events (250,000 est. rows)",
+      "detail": "Postgres read events sequentially, scanning roughly 250,000 rows (estimated — run with ANALYZE for actuals).",
+      "cause": "A row filter ((created_at > now())) is applied after reading every row, so no index narrowed the scan.",
+      "remediation": {
+        "summary": "Add an index covering the WHERE/JOIN predicate on events so Postgres can skip non-matching rows. If the query genuinely needs most of the table, the seq scan is correct — reduce the rows touched instead.",
+        "steps": [
+          "Identify the selective columns in the WHERE/JOIN predicate.",
+          "Ensure they are sargable (no function-wrapping or implicit casts on the column).",
+          "If selectivity is low, a partial index (WHERE …) may be better."
+        ],
+        "commands": [
+          {
+            "label": "Index the predicate columns",
+            "sql": "CREATE INDEX ON events (<predicate columns>) -- columns from the filter above;"
+          }
+        ]
+      },
+      "location": {
+        "kind": "node",
+        "nodeId": 0,
+        "nodeType": "Seq Scan",
+        "relation": "events"
+      },
+      "docsUrl": "https://www.postgresql.org/docs/current/indexes-intro.html",
+      "meta": {
+        "rows": 250000
+      }
+    }
+  ],
+  "bottlenecks": [],
+  "plan": {
+    "id": 0,
+    "nodeType": "Seq Scan",
+    "planRows": 250000,
+    "relationName": "events",
+    "alias": "events",
+    "planWidth": 24,
+    "startupCost": 0,
+    "totalCost": 8200,
+    "filter": "(created_at > now())",
+    "metrics": {
+      "cacheHitRatio": null
+    },
+    "children": []
+  }
+}"
+`;
+
+exports[`renderers (snapshot) > cost-only.json → markdown 1`] = `
+"# pg-explain report
+
+> **Verdict:** 1 warning. Cost-only plan (no timing).
+
+## Summary
+
+| Metric | Value |
+| --- | --- |
+| Mode | cost-only (no ANALYZE) |
+| Findings | 0 critical, 1 warning(s), 0 note(s) |
+
+## Plan tree
+
+\`\`\`
+Seq Scan on events  —  rows≈250,000 est
+\`\`\`
+
+## Findings
+
+### 🟠 Warning — Sequential scan on events (250,000 est. rows)
+
+\`PGX_SEQ_SCAN_LARGE\`
+
+**What:** Postgres read events sequentially, scanning roughly 250,000 rows (estimated — run with ANALYZE for actuals).
+
+**Why:** A row filter ((created_at > now())) is applied after reading every row, so no index narrowed the scan.
+
+**Fix:** Add an index covering the WHERE/JOIN predicate on events so Postgres can skip non-matching rows. If the query genuinely needs most of the table, the seq scan is correct — reduce the rows touched instead.
+
+- Identify the selective columns in the WHERE/JOIN predicate.
+- Ensure they are sargable (no function-wrapping or implicit casts on the column).
+- If selectivity is low, a partial index (WHERE …) may be better.
+
+_Index the predicate columns:_
+\`\`\`sql
+CREATE INDEX ON events (<predicate columns>) -- columns from the filter above;
+\`\`\`
+
+📖 [PostgreSQL docs](https://www.postgresql.org/docs/current/indexes-intro.html)
+"
+`;
+
+exports[`renderers (snapshot) > cost-only.json → text 1`] = `
+"pg-explain report
+Verdict: 1 warning. Cost-only plan (no timing).
+
+Plan tree
+Seq Scan on events  rows≈250,000 est
+
+Findings
+
+[WARNING] Sequential scan on events (250,000 est. rows) PGX_SEQ_SCAN_LARGE
+  What: Postgres read events sequentially, scanning roughly 250,000 rows (estimated — run with ANALYZE for actuals).
+  Why:  A row filter ((created_at > now())) is applied after reading every row, so no index narrowed the scan.
+  Fix:  Add an index covering the WHERE/JOIN predicate on events so Postgres can skip non-matching rows. If the query genuinely needs most of the table, the seq scan is correct — reduce the rows touched instead.
+        - Identify the selective columns in the WHERE/JOIN predicate.
+        - Ensure they are sargable (no function-wrapping or implicit casts on the column).
+        - If selectivity is low, a partial index (WHERE …) may be better.
+        Index the predicate columns: CREATE INDEX ON events (<predicate columns>) -- columns from the filter above;
+        docs: https://www.postgresql.org/docs/current/indexes-intro.html
+"
+`;
+
+exports[`renderers (snapshot) > seq-scan-large.json → json 1`] = `
+"{
+  "schemaVersion": 1,
+  "verdict": "2 warnings, 2 notes — top cost: Seq Scan on orders (78% of time). Total 321.0 ms.",
+  "worstSeverity": "warn",
+  "summary": {
+    "planningTimeMs": 0.42,
+    "executionTimeMs": 321,
+    "hasAnalyze": true,
+    "hasBuffers": true,
+    "nodeCount": 2,
+    "findings": {
+      "error": 0,
+      "warn": 2,
+      "info": 2
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "PGX_SEQ_SCAN_LARGE",
+      "domain": "plan",
+      "severity": "warn",
+      "title": "Sequential scan on orders (500,000 rows)",
+      "detail": "Postgres read orders sequentially, scanning roughly 500,000 rows.",
+      "cause": "A row filter ((status = 'shipped'::text)) is applied after reading every row, so no index narrowed the scan.",
+      "remediation": {
+        "summary": "Add an index covering the WHERE/JOIN predicate on orders so Postgres can skip non-matching rows. If the query genuinely needs most of the table, the seq scan is correct — reduce the rows touched instead.",
+        "steps": [
+          "Identify the selective columns in the WHERE/JOIN predicate.",
+          "Ensure they are sargable (no function-wrapping or implicit casts on the column).",
+          "If selectivity is low, a partial index (WHERE …) may be better."
+        ],
+        "commands": [
+          {
+            "label": "Index the predicate columns",
+            "sql": "CREATE INDEX ON orders (<predicate columns>) -- columns from the filter above;"
+          }
+        ]
+      },
+      "location": {
+        "kind": "node",
+        "nodeId": 1,
+        "nodeType": "Seq Scan",
+        "relation": "orders"
+      },
+      "docsUrl": "https://www.postgresql.org/docs/current/indexes-intro.html",
+      "meta": {
+        "rows": 500000
+      }
+    },
+    {
+      "code": "PGX_ROW_MISESTIMATE",
+      "domain": "plan",
+      "severity": "warn",
+      "title": "500x row underestimate on orders",
+      "detail": "Postgres estimated 1,000 rows but 500,000 were produced — a 500x underestimate on orders.",
+      "cause": "The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).",
+      "remediation": {
+        "summary": "Refresh and sharpen statistics for orders: run ANALYZE orders, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly. Underestimates feeding a nested loop or hash join are the highest priority — fix these first.",
+        "steps": [
+          "Refresh table statistics first; this alone often fixes the estimate.",
+          "If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.",
+          "If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence."
+        ],
+        "commands": [
+          {
+            "label": "Refresh statistics",
+            "sql": "ANALYZE orders;"
+          },
+          {
+            "label": "Raise per-column statistics target",
+            "sql": "ALTER TABLE orders ALTER COLUMN <column> SET STATISTICS 1000;\\nANALYZE orders;"
+          },
+          {
+            "label": "Add extended statistics for correlated columns",
+            "sql": "CREATE STATISTICS <stats_name> (dependencies, ndistinct) ON <col_a>, <col_b> FROM orders;\\nANALYZE orders;"
+          }
+        ]
+      },
+      "location": {
+        "kind": "node",
+        "nodeId": 1,
+        "nodeType": "Seq Scan",
+        "relation": "orders"
+      },
+      "docsUrl": "https://www.postgresql.org/docs/current/planner-stats.html",
+      "meta": {
+        "estimatedRows": 1000,
+        "actualRows": 500000,
+        "factor": 500,
+        "direction": "under"
+      }
+    },
+    {
+      "code": "PGX_LOW_CACHE_HIT",
+      "domain": "plan",
+      "severity": "info",
+      "title": "Low cache hit ratio at Aggregate (2.3%)",
+      "detail": "Aggregate served only 2.3% of its shared-buffer accesses from cache, reading 5,000 blk (39.1 MiB) from disk.",
+      "cause": "The pages this node needed were not resident in shared_buffers, so PostgreSQL had to read them from disk. On a first run this is an expected cold cache; if it persists, the working set is larger than the cache or the scan touches more pages than necessary.",
+      "remediation": {
+        "summary": "Re-run the query to check whether this is just a cold cache — the ratio should climb on a warm run. If it stays low, the working set exceeds shared_buffers: size shared_buffers/effective_cache_size to your RAM, or add a selective index on the scanned relation so far fewer pages are read.",
+        "steps": [
+          "Run the same EXPLAIN (ANALYZE, BUFFERS) a second time; a much higher hit ratio means the first run was a cold cache and no action is needed.",
+          "If the ratio stays low, check whether shared_buffers (and effective_cache_size for planner costing) are sized to the machine's RAM.",
+          "If the node reads far more pages than the rows it returns, add a selective index so only matching pages are fetched."
+        ],
+        "commands": [
+          {
+            "label": "Inspect current buffer-cache sizing",
+            "sql": "SHOW shared_buffers; SHOW effective_cache_size;"
+          },
+          {
+            "label": "Reduce pages read with a selective index",
+            "sql": "CREATE INDEX ON <table> (<predicate columns>);"
+          }
+        ]
+      },
+      "location": {
+        "kind": "node",
+        "nodeId": 0,
+        "nodeType": "Aggregate"
+      },
+      "docsUrl": "https://www.postgresql.org/docs/current/runtime-config-resource.html#GUC-SHARED-BUFFERS",
+      "meta": {
+        "cacheHitPct": 2.3,
+        "readBlocks": 5000
+      }
+    },
+    {
+      "code": "PGX_LOW_CACHE_HIT",
+      "domain": "plan",
+      "severity": "info",
+      "title": "Low cache hit ratio at Seq Scan on orders (2.3%)",
+      "detail": "Seq Scan on orders served only 2.3% of its shared-buffer accesses from cache, reading 5,000 blk (39.1 MiB) from disk.",
+      "cause": "The pages this node needed were not resident in shared_buffers, so PostgreSQL had to read them from disk. On a first run this is an expected cold cache; if it persists, the working set is larger than the cache or the scan touches more pages than necessary.",
+      "remediation": {
+        "summary": "Re-run the query to check whether this is just a cold cache — the ratio should climb on a warm run. If it stays low, the working set exceeds shared_buffers: size shared_buffers/effective_cache_size to your RAM, or add a selective index on orders so far fewer pages are read.",
+        "steps": [
+          "Run the same EXPLAIN (ANALYZE, BUFFERS) a second time; a much higher hit ratio means the first run was a cold cache and no action is needed.",
+          "If the ratio stays low, check whether shared_buffers (and effective_cache_size for planner costing) are sized to the machine's RAM.",
+          "If the node reads far more pages than the rows it returns, add a selective index so only matching pages are fetched."
+        ],
+        "commands": [
+          {
+            "label": "Inspect current buffer-cache sizing",
+            "sql": "SHOW shared_buffers; SHOW effective_cache_size;"
+          },
+          {
+            "label": "Reduce pages read with a selective index",
+            "sql": "CREATE INDEX ON orders (<predicate columns>);"
+          }
+        ]
+      },
+      "location": {
+        "kind": "node",
+        "nodeId": 1,
+        "nodeType": "Seq Scan",
+        "relation": "orders"
+      },
+      "docsUrl": "https://www.postgresql.org/docs/current/runtime-config-resource.html#GUC-SHARED-BUFFERS",
+      "meta": {
+        "cacheHitPct": 2.3,
+        "readBlocks": 5000
+      }
+    }
+  ],
+  "bottlenecks": [
+    {
+      "id": 1,
+      "label": "Seq Scan on orders",
+      "nodeType": "Seq Scan",
+      "relation": "orders",
+      "selfMs": 250,
+      "pctOfTotal": 77.88161993769471,
+      "totalRows": 500000
+    },
+    {
+      "id": 0,
+      "label": "Aggregate",
+      "nodeType": "Aggregate",
+      "relation": null,
+      "selfMs": 70.5,
+      "pctOfTotal": 21.962616822429908,
+      "totalRows": 1
+    }
+  ],
+  "plan": {
+    "id": 0,
+    "nodeType": "Aggregate",
+    "planRows": 1,
+    "planWidth": 8,
+    "startupCost": 90000,
+    "totalCost": 90000.01,
+    "actualRows": 1,
+    "actualLoops": 1,
+    "actualStartupTime": 320.4,
+    "actualTotalTime": 320.5,
+    "sharedHitBlocks": 120,
+    "sharedReadBlocks": 5000,
+    "metrics": {
+      "totalRows": 1,
+      "inclusiveMs": 320.5,
+      "estimateFactor": 1,
+      "estimateDirection": "accurate",
+      "cacheHitRatio": 0.0234375,
+      "selfMs": 70.5,
+      "pctOfTotal": 21.962616822429908
+    },
+    "children": [
+      {
+        "id": 1,
+        "nodeType": "Seq Scan",
+        "planRows": 1000,
+        "parentRelationship": "Outer",
+        "relationName": "orders",
+        "alias": "orders",
+        "planWidth": 8,
+        "startupCost": 0,
+        "totalCost": 89000,
+        "actualRows": 500000,
+        "actualLoops": 1,
+        "actualStartupTime": 0.1,
+        "actualTotalTime": 250,
+        "filter": "(status = 'shipped'::text)",
+        "rowsRemovedByFilter": 4500000,
+        "sharedHitBlocks": 120,
+        "sharedReadBlocks": 5000,
+        "metrics": {
+          "totalRows": 500000,
+          "inclusiveMs": 250,
+          "estimateFactor": 500,
+          "estimateDirection": "under",
+          "cacheHitRatio": 0.0234375,
+          "filterDiscardRatio": 0.9,
+          "selfMs": 250,
+          "pctOfTotal": 77.88161993769471
+        },
+        "children": []
+      }
+    ]
+  }
+}"
+`;
+
+exports[`renderers (snapshot) > seq-scan-large.json → markdown 1`] = `
+"# pg-explain report
+
+> **Verdict:** 2 warnings, 2 notes — top cost: Seq Scan on orders (78% of time). Total 321.0 ms.
+
+## Summary
+
+| Metric | Value |
+| --- | --- |
+| Planning time | 0.420 ms |
+| Execution time | 321.0 ms |
+| Findings | 0 critical, 2 warning(s), 2 note(s) |
+
+## Plan tree
+
+\`\`\`
+Aggregate  —  rows=1 · self 70.5 ms (22%) · cache 2%
+└─ Seq Scan on orders  —  rows=500,000 (est 1,000, 500× under) · self 250.0 ms (78%) · cache 2%
+\`\`\`
+
+## Bottlenecks (by self time)
+
+| # | Node | Self time | % of total | Rows |
+| --- | --- | --- | --- | --- |
+| 1 | Seq Scan on orders | 250.0 ms | 77.9% | 500,000 |
+| 2 | Aggregate | 70.5 ms | 22.0% | 1 |
+
+## Findings
+
+### 🟠 Warning — Sequential scan on orders (500,000 rows)
+
+\`PGX_SEQ_SCAN_LARGE\`
+
+**What:** Postgres read orders sequentially, scanning roughly 500,000 rows.
+
+**Why:** A row filter ((status = 'shipped'::text)) is applied after reading every row, so no index narrowed the scan.
+
+**Fix:** Add an index covering the WHERE/JOIN predicate on orders so Postgres can skip non-matching rows. If the query genuinely needs most of the table, the seq scan is correct — reduce the rows touched instead.
+
+- Identify the selective columns in the WHERE/JOIN predicate.
+- Ensure they are sargable (no function-wrapping or implicit casts on the column).
+- If selectivity is low, a partial index (WHERE …) may be better.
+
+_Index the predicate columns:_
+\`\`\`sql
+CREATE INDEX ON orders (<predicate columns>) -- columns from the filter above;
+\`\`\`
+
+📖 [PostgreSQL docs](https://www.postgresql.org/docs/current/indexes-intro.html)
+
+### 🟠 Warning — 500x row underestimate on orders
+
+\`PGX_ROW_MISESTIMATE\`
+
+**What:** Postgres estimated 1,000 rows but 500,000 were produced — a 500x underestimate on orders.
+
+**Why:** The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).
+
+**Fix:** Refresh and sharpen statistics for orders: run ANALYZE orders, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly. Underestimates feeding a nested loop or hash join are the highest priority — fix these first.
+
+- Refresh table statistics first; this alone often fixes the estimate.
+- If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.
+- If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence.
+
+_Refresh statistics:_
+\`\`\`sql
+ANALYZE orders;
+\`\`\`
+
+_Raise per-column statistics target:_
+\`\`\`sql
+ALTER TABLE orders ALTER COLUMN <column> SET STATISTICS 1000;
+ANALYZE orders;
+\`\`\`
+
+_Add extended statistics for correlated columns:_
+\`\`\`sql
+CREATE STATISTICS <stats_name> (dependencies, ndistinct) ON <col_a>, <col_b> FROM orders;
+ANALYZE orders;
+\`\`\`
+
+📖 [PostgreSQL docs](https://www.postgresql.org/docs/current/planner-stats.html)
+
+### 🔵 Note — Low cache hit ratio at Aggregate (2.3%)
+
+\`PGX_LOW_CACHE_HIT\`
+
+**What:** Aggregate served only 2.3% of its shared-buffer accesses from cache, reading 5,000 blk (39.1 MiB) from disk.
+
+**Why:** The pages this node needed were not resident in shared_buffers, so PostgreSQL had to read them from disk. On a first run this is an expected cold cache; if it persists, the working set is larger than the cache or the scan touches more pages than necessary.
+
+**Fix:** Re-run the query to check whether this is just a cold cache — the ratio should climb on a warm run. If it stays low, the working set exceeds shared_buffers: size shared_buffers/effective_cache_size to your RAM, or add a selective index on the scanned relation so far fewer pages are read.
+
+- Run the same EXPLAIN (ANALYZE, BUFFERS) a second time; a much higher hit ratio means the first run was a cold cache and no action is needed.
+- If the ratio stays low, check whether shared_buffers (and effective_cache_size for planner costing) are sized to the machine's RAM.
+- If the node reads far more pages than the rows it returns, add a selective index so only matching pages are fetched.
+
+_Inspect current buffer-cache sizing:_
+\`\`\`sql
+SHOW shared_buffers; SHOW effective_cache_size;
+\`\`\`
+
+_Reduce pages read with a selective index:_
+\`\`\`sql
+CREATE INDEX ON <table> (<predicate columns>);
+\`\`\`
+
+📖 [PostgreSQL docs](https://www.postgresql.org/docs/current/runtime-config-resource.html#GUC-SHARED-BUFFERS)
+
+### 🔵 Note — Low cache hit ratio at Seq Scan on orders (2.3%)
+
+\`PGX_LOW_CACHE_HIT\`
+
+**What:** Seq Scan on orders served only 2.3% of its shared-buffer accesses from cache, reading 5,000 blk (39.1 MiB) from disk.
+
+**Why:** The pages this node needed were not resident in shared_buffers, so PostgreSQL had to read them from disk. On a first run this is an expected cold cache; if it persists, the working set is larger than the cache or the scan touches more pages than necessary.
+
+**Fix:** Re-run the query to check whether this is just a cold cache — the ratio should climb on a warm run. If it stays low, the working set exceeds shared_buffers: size shared_buffers/effective_cache_size to your RAM, or add a selective index on orders so far fewer pages are read.
+
+- Run the same EXPLAIN (ANALYZE, BUFFERS) a second time; a much higher hit ratio means the first run was a cold cache and no action is needed.
+- If the ratio stays low, check whether shared_buffers (and effective_cache_size for planner costing) are sized to the machine's RAM.
+- If the node reads far more pages than the rows it returns, add a selective index so only matching pages are fetched.
+
+_Inspect current buffer-cache sizing:_
+\`\`\`sql
+SHOW shared_buffers; SHOW effective_cache_size;
+\`\`\`
+
+_Reduce pages read with a selective index:_
+\`\`\`sql
+CREATE INDEX ON orders (<predicate columns>);
+\`\`\`
+
+📖 [PostgreSQL docs](https://www.postgresql.org/docs/current/runtime-config-resource.html#GUC-SHARED-BUFFERS)
+"
+`;
+
+exports[`renderers (snapshot) > seq-scan-large.json → text 1`] = `
+"pg-explain report
+Verdict: 2 warnings, 2 notes — top cost: Seq Scan on orders (78% of time). Total 321.0 ms.
+
+Plan tree
+Aggregate  rows=1 · self 70.5 ms (22%) · cache 2%
+\`- Seq Scan on orders  rows=500,000 (est 1,000, 500× under) · self 250.0 ms (78%) · cache 2%
+
+Bottlenecks (by self time)
+  1. Seq Scan on orders — 250.0 ms (78%)
+  2. Aggregate — 70.5 ms (22%)
+
+Findings
+
+[WARNING] Sequential scan on orders (500,000 rows) PGX_SEQ_SCAN_LARGE
+  What: Postgres read orders sequentially, scanning roughly 500,000 rows.
+  Why:  A row filter ((status = 'shipped'::text)) is applied after reading every row, so no index narrowed the scan.
+  Fix:  Add an index covering the WHERE/JOIN predicate on orders so Postgres can skip non-matching rows. If the query genuinely needs most of the table, the seq scan is correct — reduce the rows touched instead.
+        - Identify the selective columns in the WHERE/JOIN predicate.
+        - Ensure they are sargable (no function-wrapping or implicit casts on the column).
+        - If selectivity is low, a partial index (WHERE …) may be better.
+        Index the predicate columns: CREATE INDEX ON orders (<predicate columns>) -- columns from the filter above;
+        docs: https://www.postgresql.org/docs/current/indexes-intro.html
+
+[WARNING] 500x row underestimate on orders PGX_ROW_MISESTIMATE
+  What: Postgres estimated 1,000 rows but 500,000 were produced — a 500x underestimate on orders.
+  Why:  The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).
+  Fix:  Refresh and sharpen statistics for orders: run ANALYZE orders, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly. Underestimates feeding a nested loop or hash join are the highest priority — fix these first.
+        - Refresh table statistics first; this alone often fixes the estimate.
+        - If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.
+        - If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence.
+        Refresh statistics: ANALYZE orders;
+        Raise per-column statistics target: ALTER TABLE orders ALTER COLUMN <column> SET STATISTICS 1000;
+ANALYZE orders;
+        Add extended statistics for correlated columns: CREATE STATISTICS <stats_name> (dependencies, ndistinct) ON <col_a>, <col_b> FROM orders;
+ANALYZE orders;
+        docs: https://www.postgresql.org/docs/current/planner-stats.html
+
+[NOTE] Low cache hit ratio at Aggregate (2.3%) PGX_LOW_CACHE_HIT
+  What: Aggregate served only 2.3% of its shared-buffer accesses from cache, reading 5,000 blk (39.1 MiB) from disk.
+  Why:  The pages this node needed were not resident in shared_buffers, so PostgreSQL had to read them from disk. On a first run this is an expected cold cache; if it persists, the working set is larger than the cache or the scan touches more pages than necessary.
+  Fix:  Re-run the query to check whether this is just a cold cache — the ratio should climb on a warm run. If it stays low, the working set exceeds shared_buffers: size shared_buffers/effective_cache_size to your RAM, or add a selective index on the scanned relation so far fewer pages are read.
+        - Run the same EXPLAIN (ANALYZE, BUFFERS) a second time; a much higher hit ratio means the first run was a cold cache and no action is needed.
+        - If the ratio stays low, check whether shared_buffers (and effective_cache_size for planner costing) are sized to the machine's RAM.
+        - If the node reads far more pages than the rows it returns, add a selective index so only matching pages are fetched.
+        Inspect current buffer-cache sizing: SHOW shared_buffers; SHOW effective_cache_size;
+        Reduce pages read with a selective index: CREATE INDEX ON <table> (<predicate columns>);
+        docs: https://www.postgresql.org/docs/current/runtime-config-resource.html#GUC-SHARED-BUFFERS
+
+[NOTE] Low cache hit ratio at Seq Scan on orders (2.3%) PGX_LOW_CACHE_HIT
+  What: Seq Scan on orders served only 2.3% of its shared-buffer accesses from cache, reading 5,000 blk (39.1 MiB) from disk.
+  Why:  The pages this node needed were not resident in shared_buffers, so PostgreSQL had to read them from disk. On a first run this is an expected cold cache; if it persists, the working set is larger than the cache or the scan touches more pages than necessary.
+  Fix:  Re-run the query to check whether this is just a cold cache — the ratio should climb on a warm run. If it stays low, the working set exceeds shared_buffers: size shared_buffers/effective_cache_size to your RAM, or add a selective index on orders so far fewer pages are read.
+        - Run the same EXPLAIN (ANALYZE, BUFFERS) a second time; a much higher hit ratio means the first run was a cold cache and no action is needed.
+        - If the ratio stays low, check whether shared_buffers (and effective_cache_size for planner costing) are sized to the machine's RAM.
+        - If the node reads far more pages than the rows it returns, add a selective index so only matching pages are fetched.
+        Inspect current buffer-cache sizing: SHOW shared_buffers; SHOW effective_cache_size;
+        Reduce pages read with a selective index: CREATE INDEX ON orders (<predicate columns>);
+        docs: https://www.postgresql.org/docs/current/runtime-config-resource.html#GUC-SHARED-BUFFERS
+
+Total execution time: 321.0 ms
+"
+`;
+
+exports[`renderers (snapshot) > sort-spill-disk.json → json 1`] = `
+"{
+  "schemaVersion": 1,
+  "verdict": "2 warnings, 1 note — top cost: Sort (57% of time). Total 982.3 ms.",
+  "worstSeverity": "warn",
+  "summary": {
+    "planningTimeMs": 0.55,
+    "executionTimeMs": 982.3,
+    "hasAnalyze": true,
+    "hasBuffers": false,
+    "nodeCount": 3,
+    "findings": {
+      "error": 0,
+      "warn": 2,
+      "info": 1
+    }
+  },
+  "diagnostics": [
+    {
+      "code": "PGX_SEQ_SCAN_LARGE",
+      "domain": "plan",
+      "severity": "warn",
+      "title": "Sequential scan on events (2,000,000 rows)",
+      "detail": "Postgres read events sequentially, scanning roughly 2,000,000 rows.",
+      "cause": "No index condition narrowed the scan, so the whole relation was read.",
+      "remediation": {
+        "summary": "Add an index covering the WHERE/JOIN predicate on events so Postgres can skip non-matching rows. If the query genuinely needs most of the table, the seq scan is correct — reduce the rows touched instead.",
+        "steps": [
+          "Identify the selective columns in the WHERE/JOIN predicate.",
+          "Ensure they are sargable (no function-wrapping or implicit casts on the column).",
+          "If selectivity is low, a partial index (WHERE …) may be better."
+        ],
+        "commands": [
+          {
+            "label": "Index the predicate columns",
+            "sql": "CREATE INDEX ON events (<predicate columns>);"
+          }
+        ]
+      },
+      "location": {
+        "kind": "node",
+        "nodeId": 2,
+        "nodeType": "Seq Scan",
+        "relation": "events"
+      },
+      "docsUrl": "https://www.postgresql.org/docs/current/indexes-intro.html",
+      "meta": {
+        "rows": 2000000
+      }
+    },
+    {
+      "code": "PGX_SORT_SPILL_DISK",
+      "domain": "plan",
+      "severity": "warn",
+      "title": "Sort spilled to disk using 180.0 MiB of temp space",
+      "detail": "The Sort node ran an external merge sort on disk (external merge) using 180.0 MiB of temp space, because the data exceeded work_mem.",
+      "cause": "work_mem was too small to hold the sort set, so Postgres wrote sorted runs to temporary files and merged them — adding temp-file I/O that an in-memory sort avoids.",
+      "remediation": {
+        "summary": "Raise work_mem for this query so the sort stays in memory, e.g. SET work_mem = '400MB' at session or role scope (do NOT raise it globally without accounting for max_connections — each connection can allocate work_mem several times over). Alternatively, add an index on (events.created_at DESC, events.user_id) so rows arrive pre-sorted and the Sort node disappears.",
+        "steps": [
+          "Set work_mem at session or role scope for this workload, not cluster-wide.",
+          "Size it above the spilled footprint (~180.0 MiB); 400MB leaves headroom.",
+          "Or add an index on (events.created_at DESC, events.user_id) so the sort is satisfied by an ordered scan and removed entirely."
+        ],
+        "commands": [
+          {
+            "label": "Raise work_mem for this session",
+            "sql": "SET work_mem = '400MB';"
+          },
+          {
+            "label": "Or set it per role",
+            "sql": "ALTER ROLE <role> SET work_mem = '400MB';"
+          },
+          {
+            "label": "Or add an index matching the sort key",
+            "sql": "CREATE INDEX ON <table> (events.created_at DESC, events.user_id);"
+          }
+        ]
+      },
+      "location": {
+        "kind": "node",
+        "nodeId": 1,
+        "nodeType": "Sort"
+      },
+      "docsUrl": "https://www.postgresql.org/docs/current/runtime-config-resource.html#GUC-WORK-MEM",
+      "meta": {
+        "sortSpaceUsedKiB": 184320,
+        "workMemRecommended": "400MB"
+      }
+    },
+    {
+      "code": "PGX_ROW_MISESTIMATE",
+      "domain": "plan",
+      "severity": "info",
+      "title": "20,000x row overestimate",
+      "detail": "Postgres estimated 2,000,000 rows but 100 were produced — a 20,000x overestimate.",
+      "cause": "The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).",
+      "remediation": {
+        "summary": "Refresh and sharpen statistics for the underlying table: run ANALYZE <relation>, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly.",
+        "steps": [
+          "Refresh table statistics first; this alone often fixes the estimate.",
+          "If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.",
+          "If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence."
+        ],
+        "commands": [
+          {
+            "label": "Refresh statistics",
+            "sql": "ANALYZE <relation>;"
+          },
+          {
+            "label": "Raise per-column statistics target",
+            "sql": "ALTER TABLE <relation> ALTER COLUMN <column> SET STATISTICS 1000;\\nANALYZE <relation>;"
+          },
+          {
+            "label": "Add extended statistics for correlated columns",
+            "sql": "CREATE STATISTICS <stats_name> (dependencies, ndistinct) ON <col_a>, <col_b> FROM <relation>;\\nANALYZE <relation>;"
+          }
+        ]
+      },
+      "location": {
+        "kind": "node",
+        "nodeId": 1,
+        "nodeType": "Sort"
+      },
+      "docsUrl": "https://www.postgresql.org/docs/current/planner-stats.html",
+      "meta": {
+        "estimatedRows": 2000000,
+        "actualRows": 100,
+        "factor": 20000,
+        "direction": "over"
+      }
+    }
+  ],
+  "bottlenecks": [
+    {
+      "id": 1,
+      "label": "Sort",
+      "nodeType": "Sort",
+      "relation": null,
+      "selfMs": 560.5,
+      "pctOfTotal": 57.05996131528047,
+      "totalRows": 100
+    },
+    {
+      "id": 2,
+      "label": "Seq Scan on events",
+      "nodeType": "Seq Scan",
+      "relation": "events",
+      "selfMs": 420,
+      "pctOfTotal": 42.75679527639214,
+      "totalRows": 2000000
+    },
+    {
+      "id": 0,
+      "label": "Limit",
+      "nodeType": "Limit",
+      "relation": null,
+      "selfMs": 0.10000000000002274,
+      "pctOfTotal": 0.010180189351524253,
+      "totalRows": 100
+    }
+  ],
+  "plan": {
+    "id": 0,
+    "nodeType": "Limit",
+    "planRows": 100,
+    "planWidth": 64,
+    "startupCost": 185000,
+    "totalCost": 185000.25,
+    "actualRows": 100,
+    "actualLoops": 1,
+    "actualStartupTime": 980.4,
+    "actualTotalTime": 980.6,
+    "metrics": {
+      "totalRows": 100,
+      "inclusiveMs": 980.6,
+      "estimateFactor": 1,
+      "estimateDirection": "accurate",
+      "cacheHitRatio": null,
+      "selfMs": 0.10000000000002274,
+      "pctOfTotal": 0.010180189351524253
+    },
+    "children": [
+      {
+        "id": 1,
+        "nodeType": "Sort",
+        "planRows": 2000000,
+        "parentRelationship": "Outer",
+        "planWidth": 64,
+        "startupCost": 185000,
+        "totalCost": 190000,
+        "actualRows": 100,
+        "actualLoops": 1,
+        "actualStartupTime": 980.3,
+        "actualTotalTime": 980.5,
+        "sortMethod": "external merge",
+        "sortSpaceType": "Disk",
+        "sortSpaceUsed": 184320,
+        "sortKey": [
+          "events.created_at DESC",
+          "events.user_id"
+        ],
+        "metrics": {
+          "totalRows": 100,
+          "inclusiveMs": 980.5,
+          "estimateFactor": 20000,
+          "estimateDirection": "over",
+          "cacheHitRatio": null,
+          "selfMs": 560.5,
+          "pctOfTotal": 57.05996131528047
+        },
+        "children": [
+          {
+            "id": 2,
+            "nodeType": "Seq Scan",
+            "planRows": 2000000,
+            "parentRelationship": "Outer",
+            "relationName": "events",
+            "alias": "events",
+            "planWidth": 64,
+            "startupCost": 0,
+            "totalCost": 60000,
+            "actualRows": 2000000,
+            "actualLoops": 1,
+            "actualStartupTime": 0.1,
+            "actualTotalTime": 420,
+            "metrics": {
+              "totalRows": 2000000,
+              "inclusiveMs": 420,
+              "estimateFactor": 1,
+              "estimateDirection": "accurate",
+              "cacheHitRatio": null,
+              "selfMs": 420,
+              "pctOfTotal": 42.75679527639214
+            },
+            "children": []
+          }
+        ]
+      }
+    ]
+  }
+}"
+`;
+
+exports[`renderers (snapshot) > sort-spill-disk.json → markdown 1`] = `
+"# pg-explain report
+
+> **Verdict:** 2 warnings, 1 note — top cost: Sort (57% of time). Total 982.3 ms.
+
+## Summary
+
+| Metric | Value |
+| --- | --- |
+| Planning time | 0.550 ms |
+| Execution time | 982.3 ms |
+| Findings | 0 critical, 2 warning(s), 1 note(s) |
+
+## Plan tree
+
+\`\`\`
+Limit  —  rows=100 · self 0.100 ms
+└─ Sort  —  rows=100 (est 2,000,000, 20000× over) · self 560.5 ms (57%)
+   └─ Seq Scan on events  —  rows=2,000,000 · self 420.0 ms (43%)
+\`\`\`
+
+## Bottlenecks (by self time)
+
+| # | Node | Self time | % of total | Rows |
+| --- | --- | --- | --- | --- |
+| 1 | Sort | 560.5 ms | 57.1% | 100 |
+| 2 | Seq Scan on events | 420.0 ms | 42.8% | 2,000,000 |
+| 3 | Limit | 0.100 ms | 0.0% | 100 |
+
+## Findings
+
+### 🟠 Warning — Sequential scan on events (2,000,000 rows)
+
+\`PGX_SEQ_SCAN_LARGE\`
+
+**What:** Postgres read events sequentially, scanning roughly 2,000,000 rows.
+
+**Why:** No index condition narrowed the scan, so the whole relation was read.
+
+**Fix:** Add an index covering the WHERE/JOIN predicate on events so Postgres can skip non-matching rows. If the query genuinely needs most of the table, the seq scan is correct — reduce the rows touched instead.
+
+- Identify the selective columns in the WHERE/JOIN predicate.
+- Ensure they are sargable (no function-wrapping or implicit casts on the column).
+- If selectivity is low, a partial index (WHERE …) may be better.
+
+_Index the predicate columns:_
+\`\`\`sql
+CREATE INDEX ON events (<predicate columns>);
+\`\`\`
+
+📖 [PostgreSQL docs](https://www.postgresql.org/docs/current/indexes-intro.html)
+
+### 🟠 Warning — Sort spilled to disk using 180.0 MiB of temp space
+
+\`PGX_SORT_SPILL_DISK\`
+
+**What:** The Sort node ran an external merge sort on disk (external merge) using 180.0 MiB of temp space, because the data exceeded work_mem.
+
+**Why:** work_mem was too small to hold the sort set, so Postgres wrote sorted runs to temporary files and merged them — adding temp-file I/O that an in-memory sort avoids.
+
+**Fix:** Raise work_mem for this query so the sort stays in memory, e.g. SET work_mem = '400MB' at session or role scope (do NOT raise it globally without accounting for max_connections — each connection can allocate work_mem several times over). Alternatively, add an index on (events.created_at DESC, events.user_id) so rows arrive pre-sorted and the Sort node disappears.
+
+- Set work_mem at session or role scope for this workload, not cluster-wide.
+- Size it above the spilled footprint (~180.0 MiB); 400MB leaves headroom.
+- Or add an index on (events.created_at DESC, events.user_id) so the sort is satisfied by an ordered scan and removed entirely.
+
+_Raise work_mem for this session:_
+\`\`\`sql
+SET work_mem = '400MB';
+\`\`\`
+
+_Or set it per role:_
+\`\`\`sql
+ALTER ROLE <role> SET work_mem = '400MB';
+\`\`\`
+
+_Or add an index matching the sort key:_
+\`\`\`sql
+CREATE INDEX ON <table> (events.created_at DESC, events.user_id);
+\`\`\`
+
+📖 [PostgreSQL docs](https://www.postgresql.org/docs/current/runtime-config-resource.html#GUC-WORK-MEM)
+
+### 🔵 Note — 20,000x row overestimate
+
+\`PGX_ROW_MISESTIMATE\`
+
+**What:** Postgres estimated 2,000,000 rows but 100 were produced — a 20,000x overestimate.
+
+**Why:** The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).
+
+**Fix:** Refresh and sharpen statistics for the underlying table: run ANALYZE <relation>, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly.
+
+- Refresh table statistics first; this alone often fixes the estimate.
+- If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.
+- If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence.
+
+_Refresh statistics:_
+\`\`\`sql
+ANALYZE <relation>;
+\`\`\`
+
+_Raise per-column statistics target:_
+\`\`\`sql
+ALTER TABLE <relation> ALTER COLUMN <column> SET STATISTICS 1000;
+ANALYZE <relation>;
+\`\`\`
+
+_Add extended statistics for correlated columns:_
+\`\`\`sql
+CREATE STATISTICS <stats_name> (dependencies, ndistinct) ON <col_a>, <col_b> FROM <relation>;
+ANALYZE <relation>;
+\`\`\`
+
+📖 [PostgreSQL docs](https://www.postgresql.org/docs/current/planner-stats.html)
+"
+`;
+
+exports[`renderers (snapshot) > sort-spill-disk.json → text 1`] = `
+"pg-explain report
+Verdict: 2 warnings, 1 note — top cost: Sort (57% of time). Total 982.3 ms.
+
+Plan tree
+Limit  rows=100 · self 0.100 ms
+\`- Sort  rows=100 (est 2,000,000, 20000× over) · self 560.5 ms (57%)
+   \`- Seq Scan on events  rows=2,000,000 · self 420.0 ms (43%)
+
+Bottlenecks (by self time)
+  1. Sort — 560.5 ms (57%)
+  2. Seq Scan on events — 420.0 ms (43%)
+  3. Limit — 0.100 ms (0%)
+
+Findings
+
+[WARNING] Sequential scan on events (2,000,000 rows) PGX_SEQ_SCAN_LARGE
+  What: Postgres read events sequentially, scanning roughly 2,000,000 rows.
+  Why:  No index condition narrowed the scan, so the whole relation was read.
+  Fix:  Add an index covering the WHERE/JOIN predicate on events so Postgres can skip non-matching rows. If the query genuinely needs most of the table, the seq scan is correct — reduce the rows touched instead.
+        - Identify the selective columns in the WHERE/JOIN predicate.
+        - Ensure they are sargable (no function-wrapping or implicit casts on the column).
+        - If selectivity is low, a partial index (WHERE …) may be better.
+        Index the predicate columns: CREATE INDEX ON events (<predicate columns>);
+        docs: https://www.postgresql.org/docs/current/indexes-intro.html
+
+[WARNING] Sort spilled to disk using 180.0 MiB of temp space PGX_SORT_SPILL_DISK
+  What: The Sort node ran an external merge sort on disk (external merge) using 180.0 MiB of temp space, because the data exceeded work_mem.
+  Why:  work_mem was too small to hold the sort set, so Postgres wrote sorted runs to temporary files and merged them — adding temp-file I/O that an in-memory sort avoids.
+  Fix:  Raise work_mem for this query so the sort stays in memory, e.g. SET work_mem = '400MB' at session or role scope (do NOT raise it globally without accounting for max_connections — each connection can allocate work_mem several times over). Alternatively, add an index on (events.created_at DESC, events.user_id) so rows arrive pre-sorted and the Sort node disappears.
+        - Set work_mem at session or role scope for this workload, not cluster-wide.
+        - Size it above the spilled footprint (~180.0 MiB); 400MB leaves headroom.
+        - Or add an index on (events.created_at DESC, events.user_id) so the sort is satisfied by an ordered scan and removed entirely.
+        Raise work_mem for this session: SET work_mem = '400MB';
+        Or set it per role: ALTER ROLE <role> SET work_mem = '400MB';
+        Or add an index matching the sort key: CREATE INDEX ON <table> (events.created_at DESC, events.user_id);
+        docs: https://www.postgresql.org/docs/current/runtime-config-resource.html#GUC-WORK-MEM
+
+[NOTE] 20,000x row overestimate PGX_ROW_MISESTIMATE
+  What: Postgres estimated 2,000,000 rows but 100 were produced — a 20,000x overestimate.
+  Why:  The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).
+  Fix:  Refresh and sharpen statistics for the underlying table: run ANALYZE <relation>, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly.
+        - Refresh table statistics first; this alone often fixes the estimate.
+        - If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.
+        - If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence.
+        Refresh statistics: ANALYZE <relation>;
+        Raise per-column statistics target: ALTER TABLE <relation> ALTER COLUMN <column> SET STATISTICS 1000;
+ANALYZE <relation>;
+        Add extended statistics for correlated columns: CREATE STATISTICS <stats_name> (dependencies, ndistinct) ON <col_a>, <col_b> FROM <relation>;
+ANALYZE <relation>;
+        docs: https://www.postgresql.org/docs/current/planner-stats.html
+
+Total execution time: 982.3 ms
+"
+`;

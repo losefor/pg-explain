@@ -1,0 +1,94 @@
+{
+  "name": "pgexplain",
+  "version": "0.1.0",
+  "description": "Turn PostgreSQL EXPLAIN (ANALYZE) output into human-readable reports and detect plan anti-patterns — every finding tells you exactly how to fix it.",
+  "keywords": [
+    "postgres",
+    "postgresql",
+    "explain",
+    "explain-analyze",
+    "query-plan",
+    "performance",
+    "advisor",
+    "linter",
+    "cli",
+    "database"
+  ],
+  "license": "MIT",
+  "author": "",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/OWNER/pgexplain.git"
+  },
+  "bugs": {
+    "url": "https://github.com/OWNER/pgexplain/issues"
+  },
+  "homepage": "https://github.com/OWNER/pgexplain#readme",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "pg-explain": "./dist/cli.js",
+    "pgexplain": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md"
+  ],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "format": "biome format --write .",
+    "test": "vitest run --project unit",
+    "test:watch": "vitest",
+    "test:e2e": "pnpm run build && vitest run --project e2e",
+    "test:integration": "vitest run --project integration",
+    "test:cov": "vitest run --project unit --coverage",
+    "smoke": "node dist/cli.js --version",
+    "prepublishOnly": "pnpm run build && pnpm run typecheck && pnpm run lint && pnpm run test",
+    "release": "changeset publish",
+    "version": "changeset version",
+    "changeset": "changeset"
+  },
+  "dependencies": {
+    "citty": "^0.2.2",
+    "picocolors": "^1.1.1",
+    "zod": "^4.4.3"
+  },
+  "optionalDependencies": {
+    "pg": "^8.22.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.5.1",
+    "@changesets/cli": "^2.31.0",
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.15.0",
+    "@vitest/coverage-v8": "^4.1.9",
+    "execa": "^9.5.0",
+    "testcontainers": "^12.0.4",
+    "tsup": "^8.5.1",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "packageManager": "pnpm@9.7.1"
+}

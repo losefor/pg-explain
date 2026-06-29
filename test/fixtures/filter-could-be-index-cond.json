@@ -1,0 +1,40 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Limit",
+      "Plan Rows": 50,
+      "Plan Width": 64,
+      "Startup Cost": 0.42,
+      "Total Cost": 412.5,
+      "Actual Startup Time": 0.2,
+      "Actual Total Time": 18.4,
+      "Actual Rows": 50,
+      "Actual Loops": 1,
+      "Plans": [
+        {
+          "Node Type": "Index Scan",
+          "Parent Relationship": "Outer",
+          "Scan Direction": "Forward",
+          "Index Name": "idx_orders_customer_id",
+          "Relation Name": "orders",
+          "Alias": "orders",
+          "Plan Rows": 50,
+          "Plan Width": 64,
+          "Startup Cost": 0.42,
+          "Total Cost": 412.5,
+          "Actual Startup Time": 0.2,
+          "Actual Total Time": 18.3,
+          "Actual Rows": 50,
+          "Actual Loops": 1,
+          "Index Cond": "(customer_id = 42)",
+          "Filter": "(status = 'shipped'::text)",
+          "Rows Removed by Filter": 9450,
+          "Shared Hit Blocks": 9512,
+          "Shared Read Blocks": 0
+        }
+      ]
+    },
+    "Planning Time": 0.31,
+    "Execution Time": 18.6
+  }
+]

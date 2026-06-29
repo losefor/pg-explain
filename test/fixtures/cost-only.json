@@ -1,0 +1,14 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Seq Scan",
+      "Relation Name": "events",
+      "Alias": "events",
+      "Plan Rows": 250000,
+      "Plan Width": 24,
+      "Startup Cost": 0.0,
+      "Total Cost": 8200.0,
+      "Filter": "(created_at > now())"
+    }
+  }
+]

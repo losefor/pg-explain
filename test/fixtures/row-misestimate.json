@@ -1,0 +1,65 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Hash Join",
+      "Join Type": "Inner",
+      "Plan Rows": 500,
+      "Plan Width": 16,
+      "Startup Cost": 100.0,
+      "Total Cost": 95000.0,
+      "Actual Startup Time": 260.0,
+      "Actual Total Time": 410.0,
+      "Actual Rows": 500,
+      "Actual Loops": 1,
+      "Hash Cond": "(orders.customer_id = customers.id)",
+      "Plans": [
+        {
+          "Node Type": "Seq Scan",
+          "Parent Relationship": "Outer",
+          "Relation Name": "orders",
+          "Alias": "orders",
+          "Plan Rows": 1000,
+          "Plan Width": 8,
+          "Startup Cost": 0.0,
+          "Total Cost": 89000.0,
+          "Actual Startup Time": 0.1,
+          "Actual Total Time": 250.0,
+          "Actual Rows": 500000,
+          "Actual Loops": 1,
+          "Filter": "((status = 'open'::text) AND (region = 'EU'::text))",
+          "Rows Removed by Filter": 100000
+        },
+        {
+          "Node Type": "Hash",
+          "Parent Relationship": "Inner",
+          "Plan Rows": 2000,
+          "Plan Width": 8,
+          "Startup Cost": 60.0,
+          "Total Cost": 60.0,
+          "Actual Startup Time": 12.0,
+          "Actual Total Time": 12.0,
+          "Actual Rows": 2000,
+          "Actual Loops": 1,
+          "Plans": [
+            {
+              "Node Type": "Seq Scan",
+              "Parent Relationship": "Outer",
+              "Relation Name": "customers",
+              "Alias": "customers",
+              "Plan Rows": 2000,
+              "Plan Width": 8,
+              "Startup Cost": 0.0,
+              "Total Cost": 60.0,
+              "Actual Startup Time": 0.05,
+              "Actual Total Time": 8.0,
+              "Actual Rows": 2000,
+              "Actual Loops": 1
+            }
+          ]
+        }
+      ]
+    },
+    "Planning Time": 0.6,
+    "Execution Time": 412.0
+  }
+]

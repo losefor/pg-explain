@@ -1,0 +1,40 @@
+{
+  "$comment": "Sample pg-explain config. Drop a copy named .pgexplainrc.json (or .pgexplainrc) at your repo root, or inline it under a \"pgExplain\" key in package.json. Every field is optional; anything you omit falls back to the built-in default. Pass --config <path> to point at this file explicitly.",
+
+  "thresholds": {
+    "$comment": "Tune when a rule fires. Values shown are the built-in defaults — edit to taste.",
+    "seqScanRows": 100000,
+    "nestedLoopOuterRows": 10000,
+    "filterDiscardRatio": 0.9,
+    "filterRemovedAbs": 10000,
+    "misestimateFactor": 10,
+    "heapFetchRatio": 0.1,
+    "heapFetchAbs": 1000,
+    "correlatedLoops": 1000,
+    "jitPct": 25,
+    "triggerPct": 10,
+    "lowCacheHitRatio": 0.9
+  },
+
+  "rules": {
+    "$comment": "Per-rule overrides keyed by the PGX_* rule code (see src/advisor/rules/index.ts). Each entry may set { \"enabled\": false } to silence a rule, and/or { \"severity\": \"error\" | \"warn\" | \"info\" } to re-rank it.",
+
+    "PGX_SEQ_SCAN_LARGE": { "severity": "error" },
+    "PGX_ROW_MISESTIMATE": { "severity": "error" },
+    "PGX_CARTESIAN_PRODUCT": { "severity": "error" },
+    "PGX_SORT_SPILL_DISK": { "severity": "warn" },
+    "PGX_HASH_SPILL_DISK": { "severity": "warn" },
+    "PGX_NESTED_LOOP_LARGE_OUTER": { "severity": "warn" },
+    "PGX_HIGH_FILTER_DISCARD": { "severity": "warn" },
+    "PGX_CORRELATED_SUBPLAN": { "severity": "warn" },
+    "PGX_FILTER_COULD_BE_INDEX_COND": { "severity": "info" },
+    "PGX_COULD_BE_INDEX_ONLY": { "severity": "info" },
+    "PGX_INDEX_ONLY_HEAP_FETCHES": { "severity": "info" },
+    "PGX_BITMAP_LOSSY": { "severity": "info" },
+    "PGX_WORKERS_NOT_LAUNCHED": { "severity": "info" },
+    "PGX_LOW_CACHE_HIT": { "severity": "info" },
+
+    "PGX_SIGNIFICANT_JIT": { "enabled": false },
+    "PGX_TRIGGER_TIME": { "enabled": false }
+  }
+}
