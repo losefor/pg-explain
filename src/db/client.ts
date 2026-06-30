@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import type { Client, ClientConfig } from "pg";
+import type { Diagnostic } from "../core/model.ts";
 import { opError } from "../diagnostics/catalog.ts";
 import { AppError } from "../diagnostics/diagnostic.ts";
 import { logVerbose } from "../util/log.ts";
@@ -163,6 +164,102 @@ export async function queryReadOnly<T = Record<string, unknown>>(
     return res.rows as T[];
   } catch (err) {
     throw mapQueryError(err);
+  } finally {
+    await client.end().catch(() => {});
+  }
+}
+
+export interface ScriptUnitInput {
+  label: string;
+  sql: string;
+  loopNote?: string;
+}
+
+export interface ScriptUnitResult {
+  label: string;
+  loopNote?: string;
+  /** Cost-only EXPLAIN (FORMAT JSON) output, or undefined if this unit failed. */
+  planJson?: string;
+  /** Set when this unit's EXPLAIN failed (e.g. references a column that doesn't exist). */
+  error?: Diagnostic;
+}
+
+export interface ScriptResult {
+  units: ScriptUnitResult[];
+  caps: ServerCapabilities;
+}
+
+/**
+ * Cost-only EXPLAIN of many statements in one read-only, rolled-back transaction.
+ * NEVER executes: no ANALYZE, no BUFFERS — so no rows are touched, no sequence
+ * advances, no triggers/FDW/file side effects. GENERIC_PLAN is used for statements
+ * with $n parameters on PG16+. A failing unit is captured (not thrown) so one bad
+ * branch can't sink the rest.
+ */
+export async function explainScript(
+  connection: ConnectionOptions,
+  units: ScriptUnitInput[],
+  opts: {
+    statementTimeoutMs: number;
+    lockTimeoutMs: number;
+    verbose?: boolean;
+    settings?: boolean;
+  },
+): Promise<ScriptResult> {
+  const ca = connection.sslrootcert
+    ? await readFile(connection.sslrootcert, "utf8").catch(() => undefined)
+    : undefined;
+  const client = await newClient(buildClientConfig(connection, ca));
+  try {
+    await client.connect();
+  } catch (err) {
+    throw mapConnectError(err);
+  }
+
+  try {
+    const caps = capabilities(await fetchVersionNum(client));
+    await client.query("BEGIN");
+    const results: ScriptUnitResult[] = [];
+    try {
+      await client.query(`SET LOCAL statement_timeout = ${msInt(opts.statementTimeoutMs)}`);
+      await client.query(`SET LOCAL lock_timeout = ${msInt(opts.lockTimeoutMs)}`);
+      await client.query("SET LOCAL transaction_read_only = on");
+
+      for (const unit of units) {
+        const flags: ExplainFlags = {
+          analyze: false, // never execute
+          buffers: false, // BUFFERS requires ANALYZE pre-16
+          verbose: opts.verbose ?? false,
+          settings: opts.settings ?? false,
+          wal: false,
+          timing: false,
+          costs: true,
+          summary: false,
+          genericPlan: caps.genericPlan && /\$\d+/.test(unit.sql),
+          compat: true, // auto-omit anything the server is too old for
+        };
+        try {
+          const { prefix } = buildExplain(flags, caps);
+          const res = await client.query<{ "QUERY PLAN": unknown }>(`${prefix} ${unit.sql}`);
+          const r: ScriptUnitResult = { label: unit.label, planJson: extractPlanJson(res.rows) };
+          if (unit.loopNote) r.loopNote = unit.loopNote;
+          results.push(r);
+          // EXPLAIN-without-ANALYZE can leave the txn aborted only on error; reset just in case.
+        } catch (err) {
+          const diag = err instanceof AppError ? err.diagnostic : mapQueryError(err).diagnostic;
+          const r: ScriptUnitResult = { label: unit.label, error: diag };
+          if (unit.loopNote) r.loopNote = unit.loopNote;
+          results.push(r);
+          // A failed statement aborts the transaction; roll back to a clean savepoint-less state.
+          await client.query("ROLLBACK").catch(() => {});
+          await client.query("BEGIN").catch(() => {});
+          await client.query("SET LOCAL transaction_read_only = on").catch(() => {});
+        }
+      }
+      return { units: results, caps };
+    } finally {
+      await client.query("ROLLBACK").catch(() => {});
+    }
   } finally {
     await client.end().catch(() => {});
   }

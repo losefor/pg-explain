@@ -4,9 +4,11 @@ import { type ConnectionOptions, runExplain } from "../db/client.ts";
 import { type ExplainFlags, isReadOnlyStatement, splitStatements } from "../db/explain.ts";
 import { opError } from "../diagnostics/catalog.ts";
 import { analyze } from "../index.ts";
+import { extractAnalyzableUnits } from "../sql/extract.ts";
 import type { ExitCode } from "../util/exit.ts";
 import { logInfo } from "../util/log.ts";
 import { type EmitOptions, emit } from "./emit.ts";
+import { analyzeScript, emitScript } from "./script.ts";
 
 export interface RunArgs extends EmitOptions {
   connection: ConnectionOptions;
@@ -26,47 +28,67 @@ export interface RunArgs extends EmitOptions {
 
 /** run command: connect, EXPLAIN (safely), parse, analyze, render. */
 export async function runRun(args: RunArgs): Promise<ExitCode> {
-  const sql = await resolveSql(args);
-  const statements = splitStatements(sql);
-  const statement = selectStatement(statements, args.statementIndex);
+  const fullSql = await resolveSql(args);
+  // --statement narrows to one top-level statement first (which may itself be a DO block).
+  const sql =
+    args.statementIndex !== undefined
+      ? selectStatement(splitStatements(fullSql), args.statementIndex)
+      : fullSql;
 
-  // Safety: EXPLAIN ANALYZE executes the statement. Refuse data-modifying ones
-  // unless the user explicitly opts in with --force (still auto-rolled-back).
-  if (
+  const units = extractAnalyzableUnits(sql);
+  const single = units.length === 1 && units[0]?.kind === "explainable" ? units[0] : null;
+
+  // Measured path (executes): a single statement that is read-only (SELECT) or explicitly
+  // forced, with ANALYZE on. Everything else — DO blocks, multiple statements, writes
+  // without --force, --no-analyze, --generic-plan — takes the cost-only path that NEVER runs.
+  const measured =
+    single?.kind === "explainable" &&
     args.flags.analyze &&
     !args.flags.genericPlan &&
-    !isReadOnlyStatement(statement) &&
-    !args.forceWrite
-  ) {
-    const verb = statement.trim().split(/\s+/)[0]?.toUpperCase() ?? "statement";
-    throw opError("PGX_NON_SELECT_REFUSED", {
-      detail: `Refusing to ANALYZE a non-SELECT (${verb}) — it would modify data.`,
+    (isReadOnlyStatement(single.sql) || args.forceWrite);
+
+  if (measured && single) {
+    const result = await runExplain({
+      connection: args.connection,
+      statement: single.sql,
+      params: args.params,
+      flags: args.flags,
+      statementTimeoutMs: args.statementTimeoutMs,
+      lockTimeoutMs: args.lockTimeoutMs,
+      forceWrite: args.forceWrite,
+      rollback: args.rollback,
     });
+    if (result.omitted.length) {
+      logInfo(
+        `Note: server is PostgreSQL ${result.caps.major}; skipped unsupported option(s): ${result.omitted.join(", ")}.`,
+      );
+    }
+    const analysis = analyze(result.json, {
+      config: args.config,
+      redact: args.redact,
+      sql: single.sql,
+    });
+    return emit(analysis, args);
   }
 
-  const result = await runExplain({
-    connection: args.connection,
-    statement,
-    params: args.params,
-    flags: args.flags,
-    statementTimeoutMs: args.statementTimeoutMs,
-    lockTimeoutMs: args.lockTimeoutMs,
-    forceWrite: args.forceWrite,
-    rollback: args.rollback,
-  });
-
-  if (result.omitted.length) {
-    logInfo(
-      `Note: server is PostgreSQL ${result.caps.major}; skipped unsupported option(s): ${result.omitted.join(", ")}.`,
-    );
-  }
-
-  const analysis = analyze(result.json, {
+  // Cost-only safe path: extract analyzable statements and EXPLAIN each without executing.
+  const analysis = await analyzeScript(args.connection, sql, {
     config: args.config,
     redact: args.redact,
-    sql: statement,
+    statementTimeoutMs: args.statementTimeoutMs,
+    lockTimeoutMs: args.lockTimeoutMs,
+    verbose: args.flags.verbose,
+    settings: args.flags.settings,
   });
-  return emit(analysis, args);
+  return emitScript(analysis, {
+    format: args.format,
+    output: args.output,
+    color: args.color,
+    ascii: args.ascii,
+    tldr: args.tldr,
+    pretty: args.pretty,
+    failOn: args.failOn,
+  });
 }
 
 async function resolveSql(args: RunArgs): Promise<string> {
