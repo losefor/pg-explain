@@ -81,6 +81,13 @@ describe.each(VERSIONS)("Studio API against PostgreSQL %s", (version) => {
     expect(w.lastAnalyze ?? w.lastAutoanalyze).toBeTruthy();
   });
 
+  it("POST /api/catalog returns tables and their columns", async () => {
+    const json = await post("/api/catalog", { connection: { dsn } });
+    const w = json.tables.find((t: { name: string }) => t.name === "widget");
+    expect(w.schema).toBe("public");
+    expect(w.columns).toEqual(expect.arrayContaining(["id", "name"]));
+  });
+
   it("POST /api/locks/live returns a sessions snapshot", async () => {
     const json = await post("/api/locks/live", { connection: { dsn } });
     expect(Array.isArray(json.sessions)).toBe(true);

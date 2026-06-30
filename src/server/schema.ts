@@ -1,5 +1,33 @@
 import { type ConnectionOptions, queryReadOnly } from "../db/client.ts";
 
+export interface CatalogTable {
+  schema: string;
+  name: string;
+  columns: string[];
+}
+
+const CATALOG_SQL = `
+SELECT n.nspname                                   AS schema,
+       c.relname                                   AS name,
+       array_agg(a.attname::text ORDER BY a.attnum) AS columns
+FROM pg_class c
+JOIN pg_namespace n ON n.oid = c.relnamespace
+JOIN pg_attribute a ON a.attrelid = c.oid AND a.attnum > 0 AND NOT a.attisdropped
+WHERE c.relkind IN ('r', 'p', 'v', 'm', 'f')
+  AND n.nspname NOT IN ('pg_catalog', 'information_schema')
+GROUP BY n.nspname, c.relname
+ORDER BY n.nspname, c.relname;
+`;
+
+/** All user tables/views and their columns, for editor autocomplete + the schema explorer. */
+export async function catalog(connection: ConnectionOptions): Promise<CatalogTable[]> {
+  const rows = await queryReadOnly<{ schema: string; name: string; columns: string[] | null }>(
+    connection,
+    CATALOG_SQL,
+  );
+  return rows.map((r) => ({ schema: r.schema, name: r.name, columns: r.columns ?? [] }));
+}
+
 export interface RelationStat {
   relation: string;
   estRows: number | null;

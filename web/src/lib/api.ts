@@ -124,6 +124,14 @@ export interface ApiError {
   title: string;
   detail?: string;
   remediation?: { summary?: string };
+  /** Present on query errors: 1-based char offset of the problem in the SQL. */
+  meta?: { position?: number; [k: string]: unknown };
+}
+
+export interface TableInfo {
+  schema: string;
+  name: string;
+  columns: string[];
 }
 
 async function call<T>(path: string, init?: RequestInit): Promise<T> {
@@ -148,6 +156,8 @@ export const api = {
   analyzeSql: (body: { connection?: Record<string, unknown>; connectionId?: string; sql: string }) => call<ScriptAnalysis>("/api/analyze-sql", jsonInit(body)),
   schema: (body: { connection?: Record<string, unknown>; connectionId?: string; relations: string[] }) =>
     call<{ relations: RelationStat[] }>("/api/schema", jsonInit(body)),
+  catalog: (body: { connection?: Record<string, unknown>; connectionId?: string }) =>
+    call<{ tables: TableInfo[] }>("/api/catalog", jsonInit(body)),
   connections: () => call<{ connections: ConnectionPublic[] }>("/api/connections"),
   createConnection: (body: Record<string, unknown>) => call<ConnectionPublic>("/api/connections", jsonInit(body)),
   deleteConnection: (id: string) => call(`/api/connections/${id}`, { method: "DELETE" }),

@@ -1,6 +1,8 @@
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useState } from "react";
-import { api, type ApiError, type ConnectionPublic, type Diagnostic, type DiffResult, type LiveLocks, type PlanNode, type RelationStat, type Report, type RunSummary, type ScriptAnalysis, type Settings, type Severity, type SigDelta } from "./lib/api.ts";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { format as formatSqlText } from "sql-formatter";
+import { CodeEditor, type CodeEditorHandle } from "./components/CodeEditor.tsx";
+import { api, type ApiError, type ConnectionPublic, type Diagnostic, type DiffResult, type LiveLocks, type PlanNode, type RelationStat, type Report, type RunSummary, type ScriptAnalysis, type Settings, type Severity, type SigDelta, type TableInfo } from "./lib/api.ts";
 
 /** True when the SQL isn't a single plain SELECT — a DO block, multi-statement, or a write. */
 function isScripty(sql: string): boolean {
@@ -52,6 +54,28 @@ export function App() {
   const [connections, setConnections] = useState<ConnectionPublic[]>([]);
   const [connId, setConnId] = useState("");
   const [tableStats, setTableStats] = useState<RelationStat[]>([]);
+  const [catalog, setCatalog] = useState<TableInfo[]>([]);
+  const [editorError, setEditorError] = useState<{ offset: number; message: string } | null>(null);
+  const [openTable, setOpenTable] = useState<string | null>(null);
+  const editorRef = useRef<CodeEditorHandle>(null);
+
+  // lang-sql autocomplete map: bare name + schema-qualified name → columns.
+  const schemaMap = useMemo(() => {
+    const m: Record<string, string[]> = {};
+    for (const t of catalog) {
+      m[t.name] = t.columns;
+      m[`${t.schema}.${t.name}`] = t.columns;
+    }
+    return m;
+  }, [catalog]);
+
+  const formatSql = () => {
+    try {
+      setSql(formatSqlText(sql, { language: "postgresql" }));
+    } catch {
+      /* leave malformed SQL untouched */
+    }
+  };
 
   const refreshHistory = useCallback(() => {
     api.history().then((r) => setHistory(r.runs)).catch(() => {});
@@ -61,6 +85,20 @@ export function App() {
   }, []);
   useEffect(refreshHistory, [refreshHistory]);
   useEffect(refreshConnections, [refreshConnections]);
+
+  // Load the table/column catalog for autocomplete + the explorer when a saved connection is picked.
+  // (Manual connections load lazily after the first successful run — see submit().)
+  useEffect(() => {
+    if (!connId) {
+      setCatalog([]);
+      return;
+    }
+    let cancelled = false;
+    api.catalog({ connectionId: connId }).then((r) => !cancelled && setCatalog(r.tables)).catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [connId]);
 
   const saveConnection = async () => {
     const name = prompt("Name this connection:");
@@ -73,6 +111,7 @@ export function App() {
     setBusy(true);
     setErr(null);
     setScript(null);
+    setEditorError(null);
     try {
       const connBody = connId ? { connectionId: connId } : { connection: cleanConn(conn) };
 
@@ -96,10 +135,20 @@ export function App() {
         if (relations.length) {
           api.schema({ ...connBody, relations }).then((s) => setTableStats(s.relations)).catch(() => {});
         }
+        // Lazily populate autocomplete for manual connections once we know they work.
+        if (!connId && catalog.length === 0) {
+          api.catalog(connBody).then((res) => setCatalog(res.tables)).catch(() => {});
+        }
       }
     } catch (e) {
-      setErr(e as ApiError);
+      const ae = e as ApiError;
+      setErr(ae);
       setReport(null);
+      // Underline the offending spot inline for single-statement runs that carry a pg position.
+      const pos = ae.meta?.position;
+      if (mode === "run" && typeof pos === "number" && pos > 0) {
+        setEditorError({ offset: pos - 1, message: ae.detail || ae.title });
+      }
     } finally {
       setBusy(false);
     }
@@ -213,6 +262,51 @@ export function App() {
             </button>
           ))}
         </div>
+
+        {catalog.length > 0 && (
+          <div className="border-t flex flex-col min-h-0 max-h-[45%]">
+            <div className="px-3 py-2 text-xs uppercase tracking-wide text-muted-foreground">
+              Schema · {catalog.length} tables
+            </div>
+            <div className="flex-1 overflow-y-auto px-2 pb-3 space-y-0.5">
+              {catalog.map((t) => {
+                const key = `${t.schema}.${t.name}`;
+                const open = openTable === key;
+                return (
+                  <div key={key}>
+                    <div className="flex items-center gap-1">
+                      <button type="button" onClick={() => setOpenTable(open ? null : key)} className="w-4 text-xs text-muted-foreground">
+                        {open ? "▾" : "▸"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => editorRef.current?.insertText(t.name)}
+                        title={`${key} — click to insert`}
+                        className="flex-1 text-left rounded px-1 py-0.5 hover:bg-accent text-sm truncate"
+                      >
+                        {t.name}
+                      </button>
+                    </div>
+                    {open && (
+                      <div className="ml-5 border-l pl-2 space-y-0.5 py-0.5">
+                        {t.columns.map((col) => (
+                          <button
+                            type="button"
+                            key={col}
+                            onClick={() => editorRef.current?.insertText(col)}
+                            className="block w-full text-left rounded px-1 py-0.5 hover:bg-accent text-xs text-muted-foreground truncate"
+                          >
+                            {col}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
       </aside>
 
       <main className="flex flex-col min-h-0 overflow-hidden">
@@ -256,20 +350,30 @@ export function App() {
           )}
 
           {mode === "paste" ? (
-            <textarea
-              className="w-full h-28 rounded-md bg-secondary p-3 font-mono text-sm"
-              placeholder="Paste EXPLAIN (FORMAT JSON) output here"
-              value={plan}
-              onChange={(e) => setPlan(e.target.value)}
-            />
+            <div className="rounded-md border overflow-hidden">
+              <CodeEditor
+                language="json"
+                value={plan}
+                onChange={setPlan}
+                placeholder="Paste EXPLAIN (FORMAT JSON) output here"
+                minHeight="140px"
+              />
+            </div>
           ) : null}
 
-          <textarea
-            className="w-full h-24 rounded-md bg-secondary p-3 font-mono text-sm"
-            placeholder={mode === "run" ? "SELECT … (a single statement)" : "Optional: the SQL, to enable lock warnings"}
-            value={sql}
-            onChange={(e) => setSql(e.target.value)}
-          />
+          <div className="rounded-md border overflow-hidden">
+            <CodeEditor
+              ref={editorRef}
+              language="sql"
+              value={sql}
+              onChange={setSql}
+              onRun={submit}
+              schema={schemaMap}
+              error={editorError}
+              placeholder={mode === "run" ? "SELECT … — ⌘/Ctrl+Enter to run" : "Optional: the SQL, to enable lock warnings"}
+              minHeight="120px"
+            />
+          </div>
 
           <div className="flex items-center gap-3">
             <button
@@ -279,6 +383,14 @@ export function App() {
               className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium disabled:opacity-50"
             >
               {busy ? "Explaining…" : mode === "run" ? "Explain" : "Analyze"}
+            </button>
+            <button
+              type="button"
+              onClick={formatSql}
+              className="rounded-md bg-secondary px-3 py-2 text-sm hover:bg-accent"
+              title="Format SQL (Shift+⌘/Ctrl+F)"
+            >
+              Format
             </button>
             {mode === "run" && (
               <button type="button" onClick={checkLive} disabled={busy} className="rounded-md bg-secondary px-3 py-2 text-sm disabled:opacity-50">

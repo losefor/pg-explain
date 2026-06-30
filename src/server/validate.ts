@@ -88,6 +88,15 @@ export const AnalyzeSqlBodySchema = z
     message: "provide a connection or connectionId",
   });
 
+export const CatalogBodySchema = z
+  .object({
+    connection: ConnectionInputSchema.optional(),
+    connectionId: z.string().optional(),
+  })
+  .refine((b) => b.connection || b.connectionId, {
+    message: "provide a connection or connectionId",
+  });
+
 export const LiveLocksBodySchema = z
   .object({
     connection: ConnectionInputSchema.optional(),

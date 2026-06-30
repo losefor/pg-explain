@@ -291,6 +291,8 @@ interface PgError {
   code?: string;
   message?: string;
   routine?: string;
+  /** 1-based character offset of a syntax/semantic error in the statement. */
+  position?: string;
 }
 
 function asPgError(err: unknown): PgError {
@@ -328,7 +330,9 @@ function mapQueryError(err: unknown): AppError {
   if (err instanceof AppError) return err;
   const e = asPgError(err);
   const msg = e.message ?? "";
-  const meta = e.code ? { sqlState: e.code } : undefined;
+  const meta: Record<string, string | number> = {};
+  if (e.code) meta.sqlState = e.code;
+  if (e.position) meta.position = Number(e.position); // 1-based offset into the statement
 
   switch (e.code) {
     case "57014":

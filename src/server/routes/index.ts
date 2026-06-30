@@ -17,13 +17,14 @@ import { analyze } from "../../index.ts";
 import { liveLocks } from "../../locks/live.ts";
 import { buildReport } from "../../report/json.ts";
 import { FORMATS, render } from "../../report/render.ts";
-import { relationStats } from "../schema.ts";
+import { catalog, relationStats } from "../schema.ts";
 import type { ConfigHolder } from "../settings.ts";
 import { writeStudioConfig } from "../settings.ts";
 import type { Store, ConnectionInput as StoredConnection } from "../store/sqlite.ts";
 import {
   AnalyzeBodySchema,
   AnalyzeSqlBodySchema,
+  CatalogBodySchema,
   ConnectionCreateSchema,
   type ConnectionInput,
   DiffBodySchema,
@@ -145,6 +146,13 @@ export function apiRoutes(store: Store, config: ConfigHolder): Hono {
       json: "application/json",
     };
     return c.body(content, 200, { "Content-Type": `${types[body.format]}; charset=utf-8` });
+  });
+
+  // Full table/column catalog for editor autocomplete + the schema explorer.
+  api.post("/api/catalog", async (c) => {
+    const body = validate(CatalogBodySchema, await c.req.json().catch(() => ({})));
+    const { connection } = resolveConnection(store, body.connection, body.connectionId);
+    return c.json({ tables: await catalog(connection) });
   });
 
   // Schema/stats enrichment — size, indexes, vacuum/analyze freshness for relations.
