@@ -77,6 +77,17 @@ export const RunBodySchema = z
   });
 export type RunBody = z.infer<typeof RunBodySchema>;
 
+export const AnalyzeSqlBodySchema = z
+  .object({
+    connection: ConnectionInputSchema.optional(),
+    connectionId: z.string().optional(),
+    sql: z.string().min(1, "SQL is required"),
+    redact: z.boolean().optional(),
+  })
+  .refine((b) => b.connection || b.connectionId, {
+    message: "provide a connection or connectionId",
+  });
+
 export const LiveLocksBodySchema = z
   .object({
     connection: ConnectionInputSchema.optional(),

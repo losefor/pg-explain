@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import pkg from "../../../package.json" with { type: "json" };
+import { analyzeScript } from "../../commands/script.ts";
 import { DEFAULT_THRESHOLDS } from "../../config.ts";
 import { diffAnalyses } from "../../core/diff.ts";
 import { executionMs } from "../../core/metrics.ts";
@@ -22,6 +23,7 @@ import { writeStudioConfig } from "../settings.ts";
 import type { Store, ConnectionInput as StoredConnection } from "../store/sqlite.ts";
 import {
   AnalyzeBodySchema,
+  AnalyzeSqlBodySchema,
   ConnectionCreateSchema,
   type ConnectionInput,
   DiffBodySchema,
@@ -150,6 +152,30 @@ export function apiRoutes(store: Store, config: ConfigHolder): Hono {
     const body = validate(SchemaBodySchema, await c.req.json().catch(() => ({})));
     const { connection } = resolveConnection(store, body.connection, body.connectionId);
     return c.json({ relations: await relationStats(connection, body.relations) });
+  });
+
+  // Safely analyze a DO block / multi-statement script / write — cost-only, never executes.
+  api.post("/api/analyze-sql", async (c) => {
+    const body = validate(AnalyzeSqlBodySchema, await c.req.json().catch(() => ({})));
+    const { connection } = resolveConnection(store, body.connection, body.connectionId);
+    const analysis = await analyzeScript(connection, body.sql, {
+      config: config.current,
+      redact: body.redact,
+      statementTimeoutMs: 30_000,
+      lockTimeoutMs: 5_000,
+    });
+    return c.json({
+      executed: false,
+      serverMajor: analysis.serverMajor ?? null,
+      units: analysis.units.map((u) => ({
+        label: u.label,
+        status: u.status,
+        loopNote: u.loopNote ?? null,
+        report: u.report ?? null,
+        reason: u.reason ?? null,
+        errorCode: u.errorCode ?? null,
+      })),
+    });
   });
 
   // Live lock contention — the one thing EXPLAIN can't show.

@@ -1,6 +1,14 @@
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
-import { api, type ApiError, type ConnectionPublic, type Diagnostic, type DiffResult, type LiveLocks, type PlanNode, type RelationStat, type Report, type RunSummary, type Settings, type Severity, type SigDelta } from "./lib/api.ts";
+import { api, type ApiError, type ConnectionPublic, type Diagnostic, type DiffResult, type LiveLocks, type PlanNode, type RelationStat, type Report, type RunSummary, type ScriptAnalysis, type Settings, type Severity, type SigDelta } from "./lib/api.ts";
+
+/** True when the SQL isn't a single plain SELECT — a DO block, multi-statement, or a write. */
+function isScripty(sql: string): boolean {
+  const s = sql.trim();
+  if (/^do\b/i.test(s)) return true;
+  if (/;\s*\S/.test(s.replace(/;\s*$/, ""))) return true; // more than one statement
+  return !/^(select|with|table|values|explain)\b/i.test(s);
+}
 
 function collectRelations(node: PlanNode, acc = new Set<string>()): string[] {
   if (node.relationName) acc.add(node.relationName);
@@ -40,6 +48,7 @@ export function App() {
   const [picked, setPicked] = useState<string[]>([]);
   const [diff, setDiff] = useState<DiffResult | null>(null);
   const [settings, setSettings] = useState<Settings | null>(null);
+  const [script, setScript] = useState<ScriptAnalysis | null>(null);
   const [connections, setConnections] = useState<ConnectionPublic[]>([]);
   const [connId, setConnId] = useState("");
   const [tableStats, setTableStats] = useState<RelationStat[]>([]);
@@ -63,10 +72,20 @@ export function App() {
   const submit = async () => {
     setBusy(true);
     setErr(null);
+    setScript(null);
     try {
+      const connBody = connId ? { connectionId: connId } : { connection: cleanConn(conn) };
+
+      // DO blocks, multi-statement scripts, and writes → cost-only, never executed.
+      if (mode === "run" && isScripty(sql)) {
+        setScript(await api.analyzeSql({ ...connBody, sql }));
+        setReport(null);
+        return;
+      }
+
       const r =
         mode === "run"
-          ? await api.run(connId ? { connectionId: connId, sql } : { connection: cleanConn(conn), sql })
+          ? await api.run({ ...connBody, sql })
           : await api.analyze(plan, sql.trim() || undefined);
       setReport(r);
       setTableStats([]);
@@ -75,8 +94,7 @@ export function App() {
       if (mode === "run") {
         const relations = collectRelations(r.plan);
         if (relations.length) {
-          const body = connId ? { connectionId: connId, relations } : { connection: cleanConn(conn), relations };
-          api.schema(body).then((s) => setTableStats(s.relations)).catch(() => {});
+          api.schema({ ...connBody, relations }).then((s) => setTableStats(s.relations)).catch(() => {});
         }
       }
     } catch (e) {
@@ -94,6 +112,7 @@ export function App() {
       setTableStats([]);
       setLive(null);
       setDiff(null);
+      setScript(null);
       setErr(null);
     } catch (e) {
       setErr(e as ApiError);
@@ -118,6 +137,7 @@ export function App() {
       setDiff(await api.diff(order ? (a as string) : (b as string), order ? (b as string) : (a as string)));
       setReport(null);
       setLive(null);
+      setScript(null);
     } catch (e) {
       setErr(e as ApiError);
     }
@@ -129,6 +149,7 @@ export function App() {
     try {
       setLive(await api.liveLocks(connId ? { connectionId: connId } : { connection: cleanConn(conn) }));
       setReport(null);
+      setScript(null);
     } catch (e) {
       setErr(e as ApiError);
     } finally {
@@ -273,10 +294,11 @@ export function App() {
         <div className="flex-1 overflow-y-auto p-4">
           {settings && <SettingsPanel settings={settings} onClose={() => setSettings(null)} />}
           {!settings && err && <ErrorCard err={err} />}
-          {!settings && diff && <DiffPanel diff={diff} onClose={() => setDiff(null)} />}
-          {!settings && live && !diff && <LiveLocksPanel live={live} onClose={() => setLive(null)} />}
-          {!settings && report && !live && !diff && <Results report={report} stats={tableStats} />}
-          {!settings && !err && !report && !live && !diff && <Empty />}
+          {!settings && script && <ScriptResults script={script} />}
+          {!settings && diff && !script && <DiffPanel diff={diff} onClose={() => setDiff(null)} />}
+          {!settings && live && !diff && !script && <LiveLocksPanel live={live} onClose={() => setLive(null)} />}
+          {!settings && report && !live && !diff && !script && <Results report={report} stats={tableStats} />}
+          {!settings && !err && !report && !live && !diff && !script && <Empty />}
         </div>
       </main>
     </div>
@@ -401,6 +423,41 @@ function PlanTree({ node, depth }: { node: PlanNode; depth: number }) {
         </span>
       </div>
       {node.children.map((c) => <PlanTree key={c.id} node={c} depth={depth + 1} />)}
+    </div>
+  );
+}
+
+function ScriptResults({ script }: { script: ScriptAnalysis }) {
+  const analyzed = script.units.filter((u) => u.status === "analyzed").length;
+  const skipped = script.units.length - analyzed;
+  return (
+    <div className="space-y-4">
+      <div className="rounded-lg p-3 border-l-4" style={{ borderColor: "var(--sev-info)", background: "var(--card)" }}>
+        <div className="font-medium">Cost-only analysis — nothing was executed</div>
+        <div className="text-xs text-muted-foreground mt-1">
+          Extracted {script.units.length} statement(s) · {analyzed} analyzed, {skipped} skipped. No rows
+          touched, no sequences advanced, no triggers fired{script.serverMajor ? ` · PG ${script.serverMajor}` : ""}.
+        </div>
+      </div>
+      {script.units.map((u, i) => (
+        <div key={`${u.label}-${i}`} className="space-y-2">
+          <div className="font-medium text-sm">
+            ▸ {u.label}
+            {u.loopNote && <span className="text-muted-foreground"> ({u.loopNote})</span>}
+          </div>
+          {u.status === "analyzed" && u.report ? (
+            <Results report={u.report} stats={[]} />
+          ) : (
+            <div className="rounded-lg border p-3 text-sm" style={{ background: "var(--card)" }}>
+              <span style={{ color: u.status === "error" ? "var(--sev-warn)" : "var(--muted-foreground)" }}>
+                {u.status === "error" ? "Could not analyze" : "Skipped"}:
+              </span>{" "}
+              {u.reason}
+              {u.errorCode && <span className="text-xs text-muted-foreground"> [{u.errorCode}]</span>}
+            </div>
+          )}
+        </div>
+      ))}
     </div>
   );
 }

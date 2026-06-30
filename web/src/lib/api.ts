@@ -80,6 +80,20 @@ export interface DiffResult {
   resolvedFindings: Diagnostic[];
 }
 
+export interface ScriptUnit {
+  label: string;
+  status: "analyzed" | "skipped" | "error";
+  loopNote: string | null;
+  report: Report | null;
+  reason: string | null;
+  errorCode: string | null;
+}
+export interface ScriptAnalysis {
+  executed: false;
+  serverMajor: number | null;
+  units: ScriptUnit[];
+}
+
 export interface RelationStat {
   relation: string;
   estRows: number | null;
@@ -131,6 +145,7 @@ export const api = {
   saveSettings: (body: Partial<Settings>) => call<Settings>("/api/settings", { ...jsonInit(body), method: "PUT" }),
   analyze: (plan: string, sql?: string) => call<Report>("/api/analyze", jsonInit({ plan, sql })),
   run: (body: { connection?: Record<string, unknown>; connectionId?: string; sql: string }) => call<Report>("/api/run", jsonInit(body)),
+  analyzeSql: (body: { connection?: Record<string, unknown>; connectionId?: string; sql: string }) => call<ScriptAnalysis>("/api/analyze-sql", jsonInit(body)),
   schema: (body: { connection?: Record<string, unknown>; connectionId?: string; relations: string[] }) =>
     call<{ relations: RelationStat[] }>("/api/schema", jsonInit(body)),
   connections: () => call<{ connections: ConnectionPublic[] }>("/api/connections"),
