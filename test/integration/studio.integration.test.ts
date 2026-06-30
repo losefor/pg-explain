@@ -86,4 +86,39 @@ describe.each(VERSIONS)("Studio API against PostgreSQL %s", (version) => {
     expect(Array.isArray(json.sessions)).toBe(true);
     expect(Array.isArray(json.blocked)).toBe(true);
   });
+
+  it("POST /api/analyze-sql cost-only-analyzes a DO block and changes NOTHING", async () => {
+    const probe = new pg.Client({ connectionString: dsn });
+    await probe.connect();
+    const before = (await probe.query("SELECT count(*)::int AS n FROM widget")).rows[0]?.n;
+
+    const doBlock = `DO $$
+      BEGIN
+        IF true THEN
+          UPDATE widget SET name = 'changed';
+        ELSE
+          DELETE FROM widget;
+        END IF;
+      END $$;`;
+    const json = await post("/api/analyze-sql", { connection: { dsn }, sql: doBlock });
+
+    expect(json.executed).toBe(false);
+    const analyzed = json.units.filter((u: { status: string }) => u.status === "analyzed");
+    expect(analyzed.length).toBe(2); // IF-branch UPDATE + ELSE-branch DELETE
+    // Every analyzed write is flagged for the full-table lock.
+    expect(
+      analyzed.every((u: { report: { diagnostics: { code: string }[] } }) =>
+        u.report.diagnostics.some((d) => d.code === "PGX_WRITE_NO_WHERE"),
+      ),
+    ).toBe(true);
+
+    // The proof: nothing ran — row count is unchanged and no row was modified.
+    const after = (await probe.query("SELECT count(*)::int AS n FROM widget")).rows[0]?.n;
+    expect(after).toBe(before);
+    expect(
+      (await probe.query("SELECT count(*)::int AS n FROM widget WHERE name = 'changed'")).rows[0]
+        ?.n,
+    ).toBe(0);
+    await probe.end();
+  });
 });
