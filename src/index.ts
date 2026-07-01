@@ -9,7 +9,7 @@ import { runAdvisor } from "./advisor/index.ts";
 import { DEFAULT_CONFIG, type PgExplainConfig } from "./config.ts";
 import { computeMetrics } from "./core/metrics.ts";
 import type { AnalysisResult, Diagnostic, PlanTree, Severity } from "./core/model.ts";
-import { flatten, parseExplainJson } from "./core/parse.ts";
+import { flatten, parseExplain } from "./core/parse.ts";
 import { opDiagnostic, opError } from "./diagnostics/catalog.ts";
 import { bySeverity, maxSeverity } from "./diagnostics/diagnostic.ts";
 import { redactPlanTree } from "./input/redact.ts";
@@ -27,7 +27,7 @@ export interface AnalyzeOptions {
 
 /** Parse → (redact) → compute metrics → run advisor (+lock advisor) → attach notices. */
 export function analyze(input: string, options: AnalyzeOptions = {}): AnalysisResult {
-  const trees = parseExplainJson(input);
+  const trees = parseExplain(input);
   const tree = selectStatement(trees, options.statement);
   if (options.redact) redactPlanTree(tree);
   computeMetrics(tree);
@@ -78,7 +78,7 @@ export { runAdvisor } from "./advisor/index.ts";
 export { DEFAULT_CONFIG, DEFAULT_THRESHOLDS, type PgExplainConfig } from "./config.ts";
 export { bottlenecks, computeMetrics, executionMs, nodeLabel } from "./core/metrics.ts";
 export type * from "./core/model.ts";
-export { flatten, parseExplainJson, walk } from "./core/parse.ts";
+export { flatten, parseExplain, parseExplainJson, walk } from "./core/parse.ts";
 export { AppError, scrubCredentials } from "./diagnostics/diagnostic.ts";
 export { analyzeLocks } from "./locks/advisor.ts";
 export { JSON_SCHEMA_VERSION } from "./report/json.ts";

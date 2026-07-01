@@ -1,5 +1,6 @@
 import { opError } from "../diagnostics/catalog.ts";
 import type { JitInfo, PlanNode, PlanTree, RawPlan, TriggerInfo } from "./model.ts";
+import { parseTextToStatements } from "./parse-text.ts";
 import { ExplainOutputSchema } from "./schema.ts";
 
 // ── safe field readers ────────────────────────────────────────────────────────
@@ -171,6 +172,52 @@ function parseJit(raw: unknown): JitInfo | undefined {
   return jit;
 }
 
+/** One EXPLAIN statement, before normalization — the JSON `[{ "Plan": … }]` shape. */
+export interface RawStatement {
+  Plan: RawPlan;
+  "Planning Time"?: number;
+  "Execution Time"?: number;
+  Triggers?: unknown;
+  JIT?: unknown;
+  Settings?: unknown;
+  [key: string]: unknown;
+}
+
+/** Build a normalized PlanTree from one statement object (JSON- or text-parsed). */
+export function statementToTree(stmt: RawStatement): PlanTree {
+  let id = 0;
+  const root = normalizeNode(stmt.Plan, () => id++);
+  const hasAnalyze = root.actualLoops !== undefined || stmt["Execution Time"] !== undefined;
+  const hasBuffers = root.sharedHitBlocks !== undefined || root.sharedReadBlocks !== undefined;
+
+  const tree: PlanTree = {
+    root,
+    triggers: parseTriggers(stmt.Triggers),
+    hasAnalyze,
+    hasBuffers,
+    raw: stmt.Plan,
+  };
+  if (typeof stmt["Planning Time"] === "number") tree.planningTime = stmt["Planning Time"];
+  if (typeof stmt["Execution Time"] === "number") tree.executionTime = stmt["Execution Time"];
+  const jit = parseJit(stmt.JIT);
+  if (jit) tree.jit = jit;
+  if (stmt.Settings) tree.settings = stmt.Settings as Record<string, string>;
+  return tree;
+}
+
+/**
+ * Parse EXPLAIN input into one PlanTree per statement, auto-detecting the format:
+ * JSON (`[`/`{`) → parseExplainJson, otherwise plain-text `EXPLAIN` output.
+ */
+export function parseExplain(input: string): PlanTree[] {
+  return /^\s*[[{]/.test(input) ? parseExplainJson(input) : parseExplainText(input);
+}
+
+/** Parse plain-text `EXPLAIN [ANALYZE]` output (psql/pgAdmin) into PlanTrees. */
+export function parseExplainText(input: string): PlanTree[] {
+  return parseTextToStatements(input).map(statementToTree);
+}
+
 /**
  * Parse EXPLAIN (FORMAT JSON) text into one PlanTree per statement.
  * Accepts the standard `[{ "Plan": … }]`, a bare statement object, or a bare plan node.
@@ -194,26 +241,7 @@ export function parseExplainJson(input: string): PlanTree[] {
     });
   }
 
-  return result.data.map((stmt): PlanTree => {
-    let id = 0;
-    const root = normalizeNode(stmt.Plan as RawPlan, () => id++);
-    const hasAnalyze = root.actualLoops !== undefined || stmt["Execution Time"] !== undefined;
-    const hasBuffers = root.sharedHitBlocks !== undefined || root.sharedReadBlocks !== undefined;
-
-    const tree: PlanTree = {
-      root,
-      triggers: parseTriggers(stmt.Triggers),
-      hasAnalyze,
-      hasBuffers,
-      raw: stmt.Plan as RawPlan,
-    };
-    if (stmt["Planning Time"] !== undefined) tree.planningTime = stmt["Planning Time"];
-    if (stmt["Execution Time"] !== undefined) tree.executionTime = stmt["Execution Time"];
-    const jit = parseJit(stmt.JIT);
-    if (jit) tree.jit = jit;
-    if (stmt.Settings) tree.settings = stmt.Settings as Record<string, string>;
-    return tree;
-  });
+  return result.data.map((stmt) => statementToTree(stmt as unknown as RawStatement));
 }
 
 /** Depth-first pre-order walk (root first). Used by metrics and the advisor. */
