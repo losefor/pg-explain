@@ -1,6 +1,6 @@
 {
   "name": "pgexplain",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Turn PostgreSQL EXPLAIN (ANALYZE) output into human-readable reports and detect plan anti-patterns — every finding tells you exactly how to fix it.",
   "keywords": [
     "postgres",
