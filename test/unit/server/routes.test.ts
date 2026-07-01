@@ -53,6 +53,30 @@ describe("studio API routes", () => {
     expect(history.runs.length).toBeGreaterThan(0);
   });
 
+  it("POST /api/analyze accepts plain-text EXPLAIN and returns stats", async () => {
+    const text = [
+      "Nested Loop  (cost=0.29..16.32 rows=1 width=64) (actual time=0.045..0.052 rows=1 loops=1)",
+      "  ->  Seq Scan on orders  (cost=0.00..8.00 rows=1 width=32) (actual time=0.02..0.03 rows=1 loops=1)",
+      "        Filter: (id = 42)",
+      "        Buffers: shared hit=4 read=2",
+      "  ->  Index Scan using customers_pkey on customers  (cost=0.29..8.30 rows=1 width=32) (actual time=0.01..0.02 rows=1 loops=1)",
+      "        Index Cond: (id = orders.customer_id)",
+      "Execution Time: 0.210 ms",
+    ].join("\n");
+    const body = await json(await post("/api/analyze", { plan: text }));
+    expect(body.schemaVersion).toBe(1);
+    expect(body.summary.nodeCount).toBe(3);
+    expect(body.summary.executionTimeMs).toBe(0.21);
+    expect(body.stats.byNodeType.map((g: { key: string }) => g.key).sort()).toEqual([
+      "Index Scan",
+      "Nested Loop",
+      "Seq Scan",
+    ]);
+    const seq = body.plan.children[0];
+    expect(seq.relationName).toBe("orders");
+    expect(seq.sharedHitBlocks).toBe(4);
+  });
+
   it("POST /api/analyze with lock-relevant SQL adds lock findings", async () => {
     const body = await json(await post("/api/analyze", { plan, sql: "VACUUM FULL orders" }));
     expect(

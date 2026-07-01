@@ -1,10 +1,13 @@
 import { Check, CheckCircle2, ChevronDown, ChevronRight, CornerDownRight, ExternalLink, Lock, Minus, Plus, Settings as SettingsIcon } from "lucide-react";
 import type { ReactNode } from "react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format as formatSqlText } from "sql-formatter";
 import { CodeEditor, type CodeEditorHandle } from "./components/CodeEditor.tsx";
 import { NodeDetail } from "./components/NodeDetail.tsx";
 import { api, type ApiError, type ConnectionPublic, type Diagnostic, type DiffResult, type LiveLocks, type PlanNode, type PlanStats, type RelationStat, type Report, type RunSummary, type ScriptAnalysis, type Settings, type Severity, type SigDelta, type StatGroup, type TableInfo } from "./lib/api.ts";
+
+// React Flow + dagre are heavy; load the graph only when the Plan tab needs it.
+const PlanGraph = lazy(() => import("./components/PlanGraph.tsx").then((m) => ({ default: m.PlanGraph })));
 
 /** True when the SQL isn't a single plain SELECT — a DO block, multi-statement, or a write. */
 function isScripty(sql: string): boolean {
@@ -431,6 +434,7 @@ function cleanConn(c: Record<string, string>): Record<string, unknown> {
 function Results({ report, stats }: { report: Report; stats: RelationStat[] }) {
   const [tab, setTab] = useState<"findings" | "plan" | "stats" | "tables" | "raw">("findings");
   const [selected, setSelected] = useState<PlanNode | null>(null);
+  const [planView, setPlanView] = useState<"graph" | "text">("graph");
   const locks = report.diagnostics.filter((d) => isLock(d.code));
   const findings = report.diagnostics.filter((d) => !isLock(d.code));
 
@@ -505,8 +509,20 @@ function Results({ report, stats }: { report: Report; stats: RelationStat[] }) {
       )}
       {tab === "plan" && (
         <div className="flex flex-col lg:flex-row gap-4">
-          <div className="flex-1 min-w-0 overflow-x-auto font-mono text-sm">
-            <PlanTree node={report.plan} depth={0} onSelect={setSelected} selectedId={selected?.id} />
+          <div className="flex-1 min-w-0">
+            <div className="flex gap-1 mb-2">
+              <Tab active={planView === "graph"} onClick={() => setPlanView("graph")}>Graph</Tab>
+              <Tab active={planView === "text"} onClick={() => setPlanView("text")}>Text</Tab>
+            </div>
+            {planView === "graph" ? (
+              <Suspense fallback={<div className="text-sm text-muted-foreground p-4">Loading graph…</div>}>
+                <PlanGraph root={report.plan} onSelect={setSelected} selectedId={selected?.id} />
+              </Suspense>
+            ) : (
+              <div className="overflow-x-auto font-mono text-sm">
+                <PlanTree node={report.plan} depth={0} onSelect={setSelected} selectedId={selected?.id} />
+              </div>
+            )}
           </div>
           {selected && <NodeDetail node={selected} onClose={() => setSelected(null)} />}
         </div>
