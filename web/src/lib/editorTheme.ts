@@ -5,7 +5,7 @@ import { tags as t } from "@lezer/highlight";
 /** CodeMirror theme bound to the app's shadcn CSS variables, so it follows light/dark automatically. */
 const theme = EditorView.theme({
   "&": {
-    backgroundColor: "var(--secondary)",
+    backgroundColor: "var(--muted)",
     color: "var(--foreground)",
     fontSize: "13px",
     borderRadius: "var(--radius-md, 8px)",
@@ -17,7 +17,7 @@ const theme = EditorView.theme({
     caretColor: "var(--foreground)",
   },
   ".cm-gutters": {
-    backgroundColor: "var(--secondary)",
+    backgroundColor: "var(--muted)",
     color: "var(--muted-foreground)",
     border: "none",
   },
