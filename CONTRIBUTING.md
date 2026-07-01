@@ -35,11 +35,12 @@ All scripts are run with `pnpm <script>`:
 | ------------------------ | ---------------------------------------------------------------------- |
 | `pnpm build`             | Bundle the library and CLI with **tsup** into `dist/`.                  |
 | `pnpm dev`               | Rebuild on change (`tsup --watch`).                                     |
+| `pnpm dev:studio`        | Full studio dev loop: core rebuild + API server restart + Vite HMR in one terminal. UI at http://localhost:5173. |
 | `pnpm typecheck`         | Type-check the whole project with `tsc --noEmit`.                       |
 | `pnpm lint`              | Lint and check formatting with **biome** (`biome check .`).            |
 | `pnpm lint:fix`          | Apply biome's safe fixes (`biome check --write .`).                     |
 | `pnpm format`            | Format with biome (`biome format --write .`).                          |
-| `pnpm test`              | Run the **unit** test suite with **vitest**.                            |
+| `pnpm test`              | Run the **unit** and **web** test suites with **vitest**.               |
 | `pnpm test:watch`        | Run vitest in watch mode.                                               |
 | `pnpm test:cov`          | Run the unit suite with V8 coverage.                                    |
 | `pnpm test:integration`  | Run the **integration** suite — **requires Docker** (Testcontainers).  |

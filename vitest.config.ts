@@ -11,6 +11,17 @@ export default defineConfig({
         },
       },
       {
+        resolve: {
+          alias: { "@": new URL("./web/src", import.meta.url).pathname },
+        },
+        test: {
+          name: "web",
+          include: ["web/src/**/*.test.{ts,tsx}"],
+          environment: "happy-dom",
+          globals: true, // @testing-library/react auto-cleanup hooks into afterEach
+        },
+      },
+      {
         test: {
           name: "e2e",
           include: ["test/e2e/**/*.test.ts"],
