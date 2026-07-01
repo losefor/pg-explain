@@ -25,11 +25,15 @@ export function buildReport(result: AnalysisResult): Record<string, unknown> {
     summary: {
       planningTimeMs: tree.planningTime ?? null,
       executionTimeMs: executionMs(tree) ?? null,
+      serializationTimeMs: tree.serializationTime ?? null,
       hasAnalyze: tree.hasAnalyze,
       hasBuffers: tree.hasBuffers,
       nodeCount: flatten(tree.root).length,
       findings: counts,
     },
+    triggers: tree.triggers,
+    jit: tree.jit ?? null,
+    settings: tree.settings ?? null,
     diagnostics,
     bottlenecks: bottlenecks
       .filter((n) => (n.metrics.selfMs ?? 0) > 0)

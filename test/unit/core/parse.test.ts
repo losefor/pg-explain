@@ -28,6 +28,48 @@ describe("parseExplainJson", () => {
     expect(tree?.hasBuffers).toBe(false);
   });
 
+  it("captures workers, WAL, and serialization time", () => {
+    const [tree] = parseExplainJson(
+      JSON.stringify([
+        {
+          Plan: {
+            "Node Type": "Gather",
+            "Plan Rows": 1,
+            "Actual Rows": 1,
+            "Actual Loops": 1,
+            "Workers Launched": 1,
+            Plans: [
+              {
+                "Node Type": "Seq Scan",
+                "Relation Name": "t",
+                "Plan Rows": 1,
+                "Actual Rows": 1,
+                "Actual Loops": 1,
+                "WAL Records": 3,
+                "WAL Bytes": 200,
+                "WAL FPI": 1,
+                Workers: [
+                  {
+                    "Worker Number": 0,
+                    "Actual Rows": 5,
+                    "Actual Loops": 1,
+                    "Actual Total Time": 2.5,
+                  },
+                ],
+              },
+            ],
+          },
+          "Execution Time": 10,
+          Serialization: { Time: 1.5 },
+        },
+      ]),
+    );
+    expect(tree?.serializationTime).toBe(1.5);
+    const scan = tree?.root.children[0];
+    expect(scan?.walRecords).toBe(3);
+    expect(scan?.workers?.[0]?.actualTotalTime).toBe(2.5);
+  });
+
   it("accepts a bare plan node and a bare statement object", () => {
     expect(parseExplainJson('{"Node Type":"Result","Plan Rows":1}')).toHaveLength(1);
     expect(parseExplainJson('{"Plan":{"Node Type":"Result","Plan Rows":1}}')).toHaveLength(1);

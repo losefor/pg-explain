@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format as formatSqlText } from "sql-formatter";
 import { CodeEditor, type CodeEditorHandle } from "./components/CodeEditor.tsx";
+import { NodeDetail } from "./components/NodeDetail.tsx";
 import { api, type ApiError, type ConnectionPublic, type Diagnostic, type DiffResult, type LiveLocks, type PlanNode, type PlanStats, type RelationStat, type Report, type RunSummary, type ScriptAnalysis, type Settings, type Severity, type SigDelta, type StatGroup, type TableInfo } from "./lib/api.ts";
 
 /** True when the SQL isn't a single plain SELECT — a DO block, multi-statement, or a write. */
@@ -429,6 +430,7 @@ function cleanConn(c: Record<string, string>): Record<string, unknown> {
 
 function Results({ report, stats }: { report: Report; stats: RelationStat[] }) {
   const [tab, setTab] = useState<"findings" | "plan" | "stats" | "tables" | "raw">("findings");
+  const [selected, setSelected] = useState<PlanNode | null>(null);
   const locks = report.diagnostics.filter((d) => isLock(d.code));
   const findings = report.diagnostics.filter((d) => !isLock(d.code));
 
@@ -441,9 +443,28 @@ function Results({ report, stats }: { report: Report; stats: RelationStat[] }) {
         <div className="font-medium">{report.verdict}</div>
         <div className="text-xs text-muted-foreground mt-1">
           {report.summary.executionTimeMs != null && <>exec {report.summary.executionTimeMs.toFixed(1)} ms · </>}
+          {report.summary.planningTimeMs != null && <>plan {report.summary.planningTimeMs.toFixed(1)} ms · </>}
+          {report.summary.serializationTimeMs != null && <>serialize {report.summary.serializationTimeMs.toFixed(1)} ms · </>}
           {report.summary.nodeCount} nodes · {report.summary.hasBuffers ? "buffers" : "no buffers"}
           {report.server && <> · PG {report.server.major}</>}
         </div>
+        {(report.jit?.timing?.total != null || (report.triggers?.length ?? 0) > 0 || report.settings) && (
+          <div className="flex flex-wrap gap-1.5 mt-2 text-xs">
+            {report.jit?.timing?.total != null && (
+              <span className="rounded bg-secondary px-2 py-0.5">JIT {report.jit.timing.total.toFixed(1)} ms{report.jit.functions ? ` · ${report.jit.functions} fn` : ""}</span>
+            )}
+            {(report.triggers?.length ?? 0) > 0 && (
+              <span className="rounded bg-secondary px-2 py-0.5" title={report.triggers?.map((t) => `${t.name}: ${t.time?.toFixed(1)} ms`).join("\n")}>
+                {report.triggers?.length} trigger{report.triggers?.length === 1 ? "" : "s"}
+              </span>
+            )}
+            {report.settings && (
+              <span className="rounded bg-secondary px-2 py-0.5" title={Object.entries(report.settings).map(([k, v]) => `${k} = ${v}`).join("\n")}>
+                {Object.keys(report.settings).length} non-default setting{Object.keys(report.settings).length === 1 ? "" : "s"}
+              </span>
+            )}
+          </div>
+        )}
       </div>
 
       <div className="flex gap-2 items-center">
@@ -482,7 +503,14 @@ function Results({ report, stats }: { report: Report; stats: RelationStat[] }) {
           )}
         </div>
       )}
-      {tab === "plan" && <div className="font-mono text-sm overflow-x-auto"><PlanTree node={report.plan} depth={0} /></div>}
+      {tab === "plan" && (
+        <div className="flex flex-col lg:flex-row gap-4">
+          <div className="flex-1 min-w-0 overflow-x-auto font-mono text-sm">
+            <PlanTree node={report.plan} depth={0} onSelect={setSelected} selectedId={selected?.id} />
+          </div>
+          {selected && <NodeDetail node={selected} onClose={() => setSelected(null)} />}
+        </div>
+      )}
       {tab === "stats" && report.stats && <StatsTab stats={report.stats} hasAnalyze={report.summary.hasAnalyze} />}
       {tab === "tables" && (
         <div className="space-y-2">
@@ -585,23 +613,34 @@ function FindingCard({ d, lock }: { d: Diagnostic; lock?: boolean }) {
   );
 }
 
-function PlanTree({ node, depth }: { node: PlanNode; depth: number }) {
+function PlanTree({ node, depth, onSelect, selectedId }: { node: PlanNode; depth: number; onSelect: (n: PlanNode) => void; selectedId?: number }) {
   const m = node.metrics;
   const pct = m.pctOfTotal ?? 0;
   const heat = pct >= 50 ? "var(--sev-error)" : pct >= 20 ? "var(--sev-warn)" : undefined;
   const label = `${node.nodeType}${node.relationName ? ` on ${node.relationName}` : ""}${node.indexName ? ` using ${node.indexName}` : ""}`;
+  const neverRan = node.actualLoops === 0;
   return (
     <div>
       <div style={{ paddingLeft: `${depth * 16}px` }}>
-        <span style={{ color: heat, fontWeight: heat ? 600 : 400 }}>{depth > 0 && <CornerDownRight className="inline size-3 mr-1 -translate-y-px text-muted-foreground" />}{label}</span>
-        <span className="text-muted-foreground">
-          {m.totalRows != null && `  rows=${m.totalRows.toLocaleString()}`}
-          {m.estimateFactor != null && m.estimateFactor >= 2 && m.estimateDirection !== "accurate" && ` (${m.estimateFactor.toFixed(0)}× ${m.estimateDirection})`}
-          {m.selfMs != null && `  self ${m.selfMs.toFixed(1)} ms`}
-          {m.pctOfTotal != null && m.pctOfTotal >= 1 && ` (${m.pctOfTotal.toFixed(0)}%)`}
-        </span>
+        <button
+          type="button"
+          onClick={() => onSelect(node)}
+          className={`text-left hover:bg-accent rounded px-1 -mx-1 ${selectedId === node.id ? "bg-accent ring-1 ring-[var(--sev-info)]" : ""}`}
+        >
+          <span style={{ color: heat, fontWeight: heat ? 600 : 400 }}>
+            {depth > 0 && <CornerDownRight className="inline size-3 mr-1 -translate-y-px text-muted-foreground" />}
+            {label}
+          </span>
+          <span className="text-muted-foreground">
+            {neverRan && " (never executed)"}
+            {m.totalRows != null && `  rows=${m.totalRows.toLocaleString()}`}
+            {m.estimateFactor != null && m.estimateFactor >= 2 && m.estimateDirection !== "accurate" && ` (${m.estimateFactor.toFixed(0)}× ${m.estimateDirection})`}
+            {m.selfMs != null && `  self ${m.selfMs.toFixed(1)} ms`}
+            {m.pctOfTotal != null && m.pctOfTotal >= 1 && ` (${m.pctOfTotal.toFixed(0)}%)`}
+          </span>
+        </button>
       </div>
-      {node.children.map((c) => <PlanTree key={c.id} node={c} depth={depth + 1} />)}
+      {node.children.map((c) => <PlanTree key={c.id} node={c} depth={depth + 1} onSelect={onSelect} selectedId={selectedId} />)}
     </div>
   );
 }

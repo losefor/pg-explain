@@ -8,6 +8,7 @@ exports[`renderers (snapshot) > cost-only.json → json 1`] = `
   "summary": {
     "planningTimeMs": null,
     "executionTimeMs": null,
+    "serializationTimeMs": null,
     "hasAnalyze": false,
     "hasBuffers": false,
     "nodeCount": 1,
@@ -17,6 +18,9 @@ exports[`renderers (snapshot) > cost-only.json → json 1`] = `
       "info": 0
     }
   },
+  "triggers": [],
+  "jit": null,
+  "settings": null,
   "diagnostics": [
     {
       "code": "PGX_SEQ_SCAN_LARGE",
@@ -161,6 +165,7 @@ exports[`renderers (snapshot) > seq-scan-large.json → json 1`] = `
   "summary": {
     "planningTimeMs": 0.42,
     "executionTimeMs": 321,
+    "serializationTimeMs": null,
     "hasAnalyze": true,
     "hasBuffers": true,
     "nodeCount": 2,
@@ -170,6 +175,9 @@ exports[`renderers (snapshot) > seq-scan-large.json → json 1`] = `
       "info": 2
     }
   },
+  "triggers": [],
+  "jit": null,
+  "settings": null,
   "diagnostics": [
     {
       "code": "PGX_SEQ_SCAN_LARGE",
@@ -632,6 +640,7 @@ exports[`renderers (snapshot) > sort-spill-disk.json → json 1`] = `
   "summary": {
     "planningTimeMs": 0.55,
     "executionTimeMs": 982.3,
+    "serializationTimeMs": null,
     "hasAnalyze": true,
     "hasBuffers": false,
     "nodeCount": 3,
@@ -641,6 +650,9 @@ exports[`renderers (snapshot) > sort-spill-disk.json → json 1`] = `
       "info": 1
     }
   },
+  "triggers": [],
+  "jit": null,
+  "settings": null,
   "diagnostics": [
     {
       "code": "PGX_SEQ_SCAN_LARGE",

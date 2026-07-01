@@ -1,5 +1,5 @@
 import { opError } from "../diagnostics/catalog.ts";
-import type { JitInfo, PlanNode, PlanTree, RawPlan, TriggerInfo } from "./model.ts";
+import type { JitInfo, PlanNode, PlanTree, RawPlan, TriggerInfo, WorkerStat } from "./model.ts";
 import { parseTextToStatements } from "./parse-text.ts";
 import { ExplainOutputSchema } from "./schema.ts";
 
@@ -119,7 +119,13 @@ function normalizeNode(raw: RawPlan, nextId: () => number): PlanNode {
     ioWriteTime: num(raw, "I/O Write Time"),
     workersPlanned: num(raw, "Workers Planned"),
     workersLaunched: num(raw, "Workers Launched"),
+    walRecords: num(raw, "WAL Records"),
+    walBytes: num(raw, "WAL Bytes"),
+    walFpi: num(raw, "WAL FPI"),
   });
+
+  const workers = parseWorkers(raw.Workers);
+  if (workers.length) node.workers = workers;
 
   const childPlans = raw.Plans;
   if (Array.isArray(childPlans)) {
@@ -135,6 +141,25 @@ function assign<T extends object>(target: T, fields: Partial<T>): void {
   for (const [k, v] of Object.entries(fields)) {
     if (v !== undefined) (target as Record<string, unknown>)[k] = v;
   }
+}
+
+function parseWorkers(raw: unknown): WorkerStat[] {
+  if (!Array.isArray(raw)) return [];
+  const out: WorkerStat[] = [];
+  for (const w of raw) {
+    const r = w as RawPlan;
+    const number = num(r, "Worker Number");
+    if (number === undefined) continue;
+    const stat: WorkerStat = { number };
+    assign(stat, {
+      actualRows: num(r, "Actual Rows"),
+      actualLoops: num(r, "Actual Loops"),
+      actualStartupTime: num(r, "Actual Startup Time"),
+      actualTotalTime: num(r, "Actual Total Time"),
+    });
+    out.push(stat);
+  }
+  return out;
 }
 
 function parseTriggers(raw: unknown): TriggerInfo[] {
@@ -199,6 +224,11 @@ export function statementToTree(stmt: RawStatement): PlanTree {
   };
   if (typeof stmt["Planning Time"] === "number") tree.planningTime = stmt["Planning Time"];
   if (typeof stmt["Execution Time"] === "number") tree.executionTime = stmt["Execution Time"];
+  const serialization = stmt.Serialization;
+  if (serialization && typeof serialization === "object") {
+    const t = num(serialization as RawPlan, "Time");
+    if (t !== undefined) tree.serializationTime = t;
+  }
   const jit = parseJit(stmt.JIT);
   if (jit) tree.jit = jit;
   if (stmt.Settings) tree.settings = stmt.Settings as Record<string, string>;

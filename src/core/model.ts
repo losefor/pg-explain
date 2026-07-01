@@ -163,11 +163,26 @@ export interface PlanNode {
   // Parallelism.
   workersPlanned?: number;
   workersLaunched?: number;
+  /** Per-worker actuals (EXPLAIN ANALYZE VERBOSE). */
+  workers?: WorkerStat[];
+
+  // WAL (data-modifying statements analyzed with the WAL option).
+  walRecords?: number;
+  walBytes?: number;
+  walFpi?: number;
 
   children: PlanNode[];
   metrics: NodeMetrics;
   /** Original JSON node — rules may read rare fields not normalized above. */
   raw: RawPlan;
+}
+
+export interface WorkerStat {
+  number: number;
+  actualRows?: number;
+  actualLoops?: number;
+  actualStartupTime?: number;
+  actualTotalTime?: number;
 }
 
 export interface JitInfo {
@@ -193,6 +208,8 @@ export interface PlanTree {
   root: PlanNode;
   planningTime?: number;
   executionTime?: number;
+  /** Result-serialization time in ms (PG17+ EXPLAIN ANALYZE SERIALIZE). */
+  serializationTime?: number;
   triggers: TriggerInfo[];
   jit?: JitInfo;
   settings?: Record<string, string>;

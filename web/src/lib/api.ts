@@ -12,14 +12,93 @@ export interface Diagnostic {
   location?: { relation?: string; nodeType?: string };
 }
 
+export interface NodeMetrics {
+  totalRows?: number;
+  inclusiveMs?: number;
+  selfMs?: number;
+  pctOfTotal?: number;
+  estimateFactor?: number;
+  estimateDirection?: "over" | "under" | "accurate";
+  cacheHitRatio?: number | null;
+  filterDiscardRatio?: number;
+  lossyRatio?: number;
+}
+
+export interface WorkerStat {
+  number: number;
+  actualRows?: number;
+  actualLoops?: number;
+  actualStartupTime?: number;
+  actualTotalTime?: number;
+}
+
 export interface PlanNode {
   id: number;
   nodeType: string;
+  parentRelationship?: string;
+  subplanName?: string;
   relationName?: string;
-  indexName?: string;
+  schema?: string;
   alias?: string;
-  metrics: { totalRows?: number; selfMs?: number; pctOfTotal?: number; estimateFactor?: number; estimateDirection?: string; cacheHitRatio?: number | null };
+  indexName?: string;
+  planRows: number;
+  planWidth?: number;
+  startupCost?: number;
+  totalCost?: number;
+  actualRows?: number;
+  actualLoops?: number;
+  actualStartupTime?: number;
+  actualTotalTime?: number;
+  filter?: string;
+  rowsRemovedByFilter?: number;
+  indexCond?: string;
+  recheckCond?: string;
+  rowsRemovedByIndexRecheck?: number;
+  heapFetches?: number;
+  hashCond?: string;
+  joinType?: string;
+  joinFilter?: string;
+  rowsRemovedByJoinFilter?: number;
+  output?: string[];
+  sortMethod?: string;
+  sortSpaceType?: string;
+  sortSpaceUsed?: number;
+  sortKey?: string[];
+  hashBuckets?: number;
+  hashBatches?: number;
+  peakMemoryUsage?: number;
+  diskUsage?: number;
+  exactHeapBlocks?: number;
+  lossyHeapBlocks?: number;
+  sharedHitBlocks?: number;
+  sharedReadBlocks?: number;
+  sharedDirtiedBlocks?: number;
+  sharedWrittenBlocks?: number;
+  localHitBlocks?: number;
+  localReadBlocks?: number;
+  tempReadBlocks?: number;
+  tempWrittenBlocks?: number;
+  ioReadTime?: number;
+  ioWriteTime?: number;
+  workersPlanned?: number;
+  workersLaunched?: number;
+  workers?: WorkerStat[];
+  walRecords?: number;
+  walBytes?: number;
+  walFpi?: number;
+  metrics: NodeMetrics;
   children: PlanNode[];
+}
+
+export interface TriggerInfo {
+  name?: string;
+  relation?: string;
+  calls?: number;
+  time?: number;
+}
+export interface JitInfo {
+  functions?: number;
+  timing?: { total?: number; generation?: number; inlining?: number; optimization?: number; emission?: number };
 }
 
 export interface StatGroup {
@@ -38,10 +117,13 @@ export interface Report {
   schemaVersion: number;
   verdict: string;
   worstSeverity: Severity | null;
-  summary: { planningTimeMs: number | null; executionTimeMs: number | null; hasAnalyze: boolean; hasBuffers: boolean; nodeCount: number; findings: Record<Severity, number> };
+  summary: { planningTimeMs: number | null; executionTimeMs: number | null; serializationTimeMs?: number | null; hasAnalyze: boolean; hasBuffers: boolean; nodeCount: number; findings: Record<Severity, number> };
   diagnostics: Diagnostic[];
   bottlenecks: { id: number; label: string; selfMs: number | null; pctOfTotal: number | null }[];
   stats?: PlanStats;
+  triggers?: TriggerInfo[];
+  jit?: JitInfo | null;
+  settings?: Record<string, string> | null;
   plan: PlanNode;
   server?: { major: number; omitted: string[] };
   runId?: string;
