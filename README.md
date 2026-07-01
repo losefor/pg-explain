@@ -24,6 +24,31 @@ The same philosophy applies to operational errors: auth failures, timeouts, unre
 
 ---
 
+## Features
+
+**Advisor & analysis**
+- **18 plan-anti-pattern rules** (`PGX_*`) — cartesian products, large seq scans, disk-spilling sorts/hashes, thrashing Memoize caches, misestimates, lossy bitmaps, OFFSET pagination, low cache-hit ratio, JIT/trigger overhead, and more.
+- **`PGX_STALE_STATISTICS`** — on the `run` path, flags tables that were never analyzed or have churned since their last `ANALYZE`, explaining the usual root cause behind misestimates.
+- **Lock advisor** — static warnings for risky DDL/DML (table rewrites, missing `CONCURRENTLY`, unbounded `FOR UPDATE`, …) plus a **live lock-contention** snapshot (who is blocked, by whom).
+- Every finding ships **what / why / fix**, with copy-pasteable SQL/shell commands and a Postgres docs link.
+- Config file (`.pgexplainrc[.json]` or `package.json#pgExplain`) to tune thresholds and enable/disable/re-sever individual rules.
+
+**CLI**
+- `pg-explain [FILE]` — analyze a plan from a file, `< stdin`, or a whole directory (batch mode).
+- `pg-explain run` — connect, `EXPLAIN` safely (rolled back, read-only unless `--force`), analyze.
+- `pg-explain diff` — compare two plans and gate CI on regressions or new findings.
+- `pg-explain locks` — snapshot live lock contention from the terminal; `--fail-on-blocked` for scripting.
+- `pg-explain studio` — launch the local web UI.
+- 5 output formats (terminal, markdown, HTML, JSON, plain text), stable exit codes for scripting, shell completion.
+
+**Studio (local web UI)** — see screenshots below.
+- Run a query or paste a plan; interactive **plan graph** (heat-colored by time/rows/cost/buffers) with per-node detail, or a text tree view.
+- **History** of every run, **side-by-side plan diff** between any two, and **shareable `#run=` links**.
+- **Stats** by node type / table / index, table catalog with autocomplete, **Settings** to tune thresholds live.
+- Keyboard shortcuts (`⌘/Ctrl+Enter` run, `⌘/Ctrl+K` focus editor, `⇧⌘/Ctrl+F` format, `?` for help), light/dark theme, collapsible sidebar with history search.
+
+---
+
 ## Install
 
 ```sh
@@ -85,15 +110,62 @@ just works — the PostgreSQL driver and the UI are only loaded on demand.
   rollback-wrapped, read-only; non-`SELECT` refused unless forced).
 - **Findings** as plain-language cards (what / why / fix + copy-paste commands + docs links).
 - **Lock advisor** — static warnings (rewrites, missing `CONCURRENTLY`, unindexed `UPDATE/DELETE`,
-  unbounded `FOR UPDATE`, …) plus a **🔒 Live locks** view of current blocking chains.
-- Interactive **plan tree** (heat-colored by self-time), **bottlenecks**, raw JSON.
-- **History** of every run (SQLite under `~/.pgexplain`), **Compare** any two runs (structured
-  diff), and **Export** to Markdown / HTML / JSON.
-- **Saved connections** and a **Settings** page to tune advisor thresholds (applied live).
+  unbounded `FOR UPDATE`, …) plus a **live locks** view of current blocking chains.
+- Interactive **plan graph** (heat-colored by time/rows/cost/buffers, click a node for full detail)
+  or a plain-text tree, **Stats** by node type/table/index, table catalog with autocomplete.
+- **History** of every run (SQLite under `~/.pgexplain`), a **side-by-side diff** between any two
+  runs with regressed/improved/added/removed nodes highlighted, and **shareable `#run=` links**.
+- **Export** to Markdown / HTML / JSON, and a **Settings** page to tune advisor thresholds live.
+- Light/dark theme, keyboard shortcuts (`?` for the full list), collapsible sidebar with history search.
 
 Flags: `pg-explain studio [--port 5177] [--host 127.0.0.1] [--no-open] [--unsafe-host]`.
 Binding a non-loopback host requires `--unsafe-host` (the studio can reach arbitrary databases,
 so exposing it is an SSRF/credential risk). Set `PGEXPLAIN_DATA_DIR` to relocate the local store.
+
+<table>
+<tr>
+<td width="50%">
+
+**Findings** — what / why / fix, with copy-pasteable SQL
+<img src="docs/screenshots/findings-light.png" alt="Studio findings tab showing plain-language diagnostics with remediation SQL">
+
+</td>
+<td width="50%">
+
+**Plan graph** — heat-colored, click a node for full detail
+<img src="docs/screenshots/plan-graph.png" alt="Studio interactive plan graph with a node detail panel open">
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Side-by-side diff** — before/after plans with regressions highlighted
+<img src="docs/screenshots/diff-side-by-side.png" alt="Studio diff view comparing two runs with a side-by-side plan tree">
+
+</td>
+<td width="50%">
+
+**Stats** — self-time rolled up by node type, table, and index
+<img src="docs/screenshots/stats-tab.png" alt="Studio stats tab with self-time breakdowns">
+
+</td>
+</tr>
+<tr>
+<td width="50%">
+
+**Dark mode**
+<img src="docs/screenshots/plan-graph-dark.png" alt="Studio in dark mode showing the plan graph">
+
+</td>
+<td width="50%">
+
+**Keyboard shortcuts** (press `?`)
+<img src="docs/screenshots/keyboard-shortcuts.png" alt="Studio keyboard shortcuts overlay">
+
+</td>
+</tr>
+</table>
 
 ---
 
