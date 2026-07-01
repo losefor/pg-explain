@@ -345,6 +345,24 @@ console.log(markdown);
 
 `analyze(input, options?)` parses the EXPLAIN JSON, optionally redacts literals, computes metrics, and runs the advisor. `render(result, options?)` emits any supported format. Other exports include `runAdvisor`, `parseExplainJson`, `computeMetrics`, `DEFAULT_CONFIG`, `FORMATS`, `JSON_SCHEMA_VERSION`, `ExitCode`, and the full type set.
 
+For finer control — e.g. custom thresholds or gating a deploy script on severity:
+
+```ts
+import { analyze, DEFAULT_CONFIG, severityAtLeast } from "pgexplain";
+
+const result = analyze(explainJson, {
+  config: {
+    ...DEFAULT_CONFIG,
+    thresholds: { ...DEFAULT_CONFIG.thresholds, seqScanRows: 10_000 },
+    rules: { PGX_LOW_CACHE_HIT: { enabled: false } },
+  },
+});
+
+if (result.worstSeverity && severityAtLeast(result.worstSeverity, "warn")) {
+  process.exit(1); // same behaviour as `pg-explain --fail-on warn`
+}
+```
+
 ---
 
 ## Exit codes

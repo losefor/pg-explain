@@ -79,7 +79,7 @@ export { DEFAULT_CONFIG, DEFAULT_THRESHOLDS, type PgExplainConfig } from "./conf
 export { bottlenecks, computeMetrics, executionMs, nodeLabel } from "./core/metrics.ts";
 export type * from "./core/model.ts";
 export { flatten, parseExplain, parseExplainJson, walk } from "./core/parse.ts";
-export { AppError, scrubCredentials } from "./diagnostics/diagnostic.ts";
+export { AppError, scrubCredentials, severityAtLeast } from "./diagnostics/diagnostic.ts";
 export { analyzeLocks } from "./locks/advisor.ts";
 export { JSON_SCHEMA_VERSION } from "./report/json.ts";
 export { FORMATS, type Format, isFormat, type RenderOptions, render } from "./report/render.ts";
