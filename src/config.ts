@@ -26,6 +26,8 @@ export const DEFAULT_THRESHOLDS: Thresholds = {
   jitPct: 25,
   triggerPct: 10,
   lowCacheHitRatio: 0.9,
+  limitDiscardRows: 10_000,
+  staleStatsModRatio: 0.2,
 };
 
 export const DEFAULT_CONFIG: PgExplainConfig = {

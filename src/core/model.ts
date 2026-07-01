@@ -148,6 +148,12 @@ export interface PlanNode {
   exactHeapBlocks?: number;
   lossyHeapBlocks?: number;
 
+  // Memoize (ANALYZE only).
+  cacheHits?: number;
+  cacheMisses?: number;
+  cacheEvictions?: number;
+  cacheOverflows?: number;
+
   // Buffers (cumulative across loops — do NOT multiply by loops).
   sharedHitBlocks?: number;
   sharedReadBlocks?: number;
@@ -234,6 +240,8 @@ export interface Thresholds {
   jitPct: number;
   triggerPct: number;
   lowCacheHitRatio: number;
+  limitDiscardRows: number;
+  staleStatsModRatio: number;
 }
 
 export interface AnalysisContext {

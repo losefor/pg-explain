@@ -3,6 +3,7 @@ import type { PgExplainConfig } from "../config.ts";
 import { type ConnectionOptions, runExplain } from "../db/client.ts";
 import { type ExplainFlags, isReadOnlyStatement, splitStatements } from "../db/explain.ts";
 import { opError } from "../diagnostics/catalog.ts";
+import { checkStaleStats } from "../diagnostics/stale-stats.ts";
 import { analyze } from "../index.ts";
 import { extractAnalyzableUnits } from "../sql/extract.ts";
 import type { ExitCode } from "../util/exit.ts";
@@ -68,6 +69,7 @@ export async function runRun(args: RunArgs): Promise<ExitCode> {
       redact: args.redact,
       sql: single.sql,
     });
+    await checkStaleStats(args.connection, analysis, args.config);
     return emit(analysis, args);
   }
 

@@ -24,4 +24,10 @@ describe("PGX_CARTESIAN_PRODUCT", () => {
     const tree = loadTree("small-seq-scan.json");
     expect(runRule(cartesianProduct, tree)).toHaveLength(0);
   });
+
+  it("looks through Memoize to the parameterized inner scan (no false positive)", () => {
+    // Nested Loop → Memoize → Index Scan (id = events.user_id): a real join key.
+    const tree = loadTree("memoize-evictions.json");
+    expect(runRule(cartesianProduct, tree)).toHaveLength(0);
+  });
 });

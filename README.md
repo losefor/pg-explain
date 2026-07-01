@@ -239,7 +239,7 @@ Shared output flags: `--tldr` (summary + findings, no plan tree), `--redact` (st
 
 ## The advisor
 
-The advisor ships **16 rules**, each identified by a stable, greppable `PGX_*` code (the rule id is the diagnostic code, and the config key). They run in roughly most-actionable-first order:
+The advisor ships **18 rules**, each identified by a stable, greppable `PGX_*` code (the rule id is the diagnostic code, and the config key). They run in roughly most-actionable-first order:
 
 | Code | Flags when… |
 | --- | --- |
@@ -247,8 +247,10 @@ The advisor ships **16 rules**, each identified by a stable, greppable `PGX_*` c
 | `PGX_SEQ_SCAN_LARGE` | A sequential scan reads a large table that an index could narrow. |
 | `PGX_NESTED_LOOP_LARGE_OUTER` | A nested loop is driven by a large outer side (re-probes inner repeatedly). |
 | `PGX_HIGH_FILTER_DISCARD` | A node reads many rows then discards most of them via a filter. |
+| `PGX_LIMIT_LARGE_OFFSET` | A `LIMIT` discards a large generated prefix (OFFSET pagination — use keyset). |
 | `PGX_SORT_SPILL_DISK` | A sort spilled to disk instead of staying in `work_mem`. |
 | `PGX_HASH_SPILL_DISK` | A hash join's build side spilled to disk (multiple batches). |
+| `PGX_MEMOIZE_EVICTIONS` | A Memoize cache is thrashing (evictions outpace hits, or entries overflow `work_mem`). |
 | `PGX_CORRELATED_SUBPLAN` | A correlated subplan is re-executed once per outer row. |
 | `PGX_ROW_MISESTIMATE` | Estimated vs actual row counts diverge sharply (stale/missing stats). |
 | `PGX_FILTER_COULD_BE_INDEX_COND` | A residual filter could be pushed into an index condition. |
@@ -261,6 +263,8 @@ The advisor ships **16 rules**, each identified by a stable, greppable `PGX_*` c
 | `PGX_TRIGGER_TIME` | Triggers consumed a significant share of execution time. |
 
 Every finding includes the *what / why / fix* triad shown in the example above. Rules can be tuned or disabled per project (see [Config](#config-file)).
+
+One additional check runs only on the `run` path (it needs a live connection, not just a plan): `PGX_STALE_STATISTICS` flags tables in the plan that were never analyzed or have churned past `staleStatsModRatio` (default 20%) since their last ANALYZE — the most common root cause behind `PGX_ROW_MISESTIMATE`. It is configured like any other rule.
 
 > pgexplain also has an **operational error catalog** of stable `PGX_*` codes — auth failures, unreachable hosts, SSL problems, timeouts, malformed/empty input, missing driver, and more — each with a title, cause, remediation, and Postgres docs link.
 

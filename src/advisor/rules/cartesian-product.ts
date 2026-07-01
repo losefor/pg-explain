@@ -22,8 +22,15 @@ export const cartesianProduct: Rule = {
     if (node.nodeType !== "Nested Loop") return [];
     if (node.joinFilter) return [];
 
-    const inner = node.children[1];
+    let inner = node.children[1];
     if (!inner) return [];
+    // Memoize/Materialize wrap the real inner scan — the join predicate lives below them.
+    while (
+      (inner.nodeType === "Memoize" || inner.nodeType === "Materialize") &&
+      inner.children[0]
+    ) {
+      inner = inner.children[0];
+    }
     // A join key on the inner side (index lookup) means there IS a predicate.
     if (inner.indexCond || inner.recheckCond) return [];
 

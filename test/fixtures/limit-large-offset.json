@@ -1,0 +1,35 @@
+[
+  {
+    "Plan": {
+      "Node Type": "Limit",
+      "Plan Rows": 50,
+      "Plan Width": 40,
+      "Startup Cost": 3400.0,
+      "Total Cost": 3401.7,
+      "Actual Startup Time": 310.2,
+      "Actual Total Time": 310.3,
+      "Actual Rows": 50,
+      "Actual Loops": 1,
+      "Plans": [
+        {
+          "Node Type": "Index Scan",
+          "Parent Relationship": "Outer",
+          "Relation Name": "posts",
+          "Alias": "posts",
+          "Index Name": "posts_created_at_idx",
+          "Scan Direction": "Forward",
+          "Plan Rows": 100050,
+          "Plan Width": 40,
+          "Startup Cost": 0.42,
+          "Total Cost": 6803.4,
+          "Actual Startup Time": 0.05,
+          "Actual Total Time": 305.8,
+          "Actual Rows": 100050,
+          "Actual Loops": 1
+        }
+      ]
+    },
+    "Planning Time": 0.4,
+    "Execution Time": 311.1
+  }
+]

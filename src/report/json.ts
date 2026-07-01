@@ -52,7 +52,7 @@ export function buildReport(result: AnalysisResult): Record<string, unknown> {
 }
 
 /** Slim node for JSON: normalized fields + metrics + children, never the raw blob. */
-function serializeNode(node: PlanNode): Record<string, unknown> {
+export function serializeNode(node: PlanNode): Record<string, unknown> {
   const { children, metrics, raw, ...fields } = node;
   void raw;
   return { ...fields, metrics, children: children.map(serializeNode) };

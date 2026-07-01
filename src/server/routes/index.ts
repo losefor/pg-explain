@@ -13,9 +13,10 @@ import {
   splitStatements,
 } from "../../db/explain.ts";
 import { opError } from "../../diagnostics/catalog.ts";
+import { checkStaleStats } from "../../diagnostics/stale-stats.ts";
 import { analyze } from "../../index.ts";
 import { liveLocks } from "../../locks/live.ts";
-import { buildReport } from "../../report/json.ts";
+import { buildReport, serializeNode } from "../../report/json.ts";
 import { FORMATS, render } from "../../report/render.ts";
 import { catalog, relationStats } from "../schema.ts";
 import type { ConfigHolder } from "../settings.ts";
@@ -113,6 +114,7 @@ export function apiRoutes(store: Store, config: ConfigHolder): Hono {
       sql: statement,
       config: config.current,
     });
+    await checkStaleStats(connection, result, config.current);
     const report = {
       ...buildReport(result),
       server: { major: exec.caps.major, omitted: exec.omitted },
@@ -130,7 +132,12 @@ export function apiRoutes(store: Store, config: ConfigHolder): Hono {
     const afterPlan = body.afterPlan ?? planTextOf(store, body.afterId);
     const before = analyze(beforePlan, { redact: body.redact });
     const after = analyze(afterPlan, { redact: body.redact });
-    return c.json(diffAnalyses(before, after));
+    // Both trees ride along so the studio can render a side-by-side view.
+    return c.json({
+      ...diffAnalyses(before, after),
+      beforePlan: serializeNode(before.tree.root),
+      afterPlan: serializeNode(after.tree.root),
+    });
   });
 
   // Export a report in a downloadable format (markdown / html / text / json).

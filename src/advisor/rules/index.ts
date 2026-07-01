@@ -7,7 +7,9 @@ import { filterCouldBeIndexCond } from "./filter-could-be-index-cond.ts";
 import { hashSpillDisk } from "./hash-spill-disk.ts";
 import { highFilterDiscard } from "./high-filter-discard.ts";
 import { indexOnlyHeapFetches } from "./index-only-heap-fetches.ts";
+import { limitLargeOffset } from "./limit-large-offset.ts";
 import { lowCacheHit } from "./low-cache-hit.ts";
+import { memoizeEvictions } from "./memoize-evictions.ts";
 import { nestedLoopLargeOuter } from "./nested-loop-large-outer.ts";
 import { rowMisestimate } from "./row-misestimate.ts";
 import { seqScanLarge } from "./seq-scan-large.ts";
@@ -25,8 +27,10 @@ export const ALL_RULES: Rule[] = [
   seqScanLarge,
   nestedLoopLargeOuter,
   highFilterDiscard,
+  limitLargeOffset,
   sortSpillDisk,
   hashSpillDisk,
+  memoizeEvictions,
   correlatedSubplan,
   rowMisestimate,
   filterCouldBeIndexCond,

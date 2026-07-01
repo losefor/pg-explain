@@ -38,6 +38,9 @@ export interface RelationStat {
   lastAutovacuum: string | null;
   lastAnalyze: string | null;
   lastAutoanalyze: string | null;
+  /** Rows modified since the last ANALYZE (pg_stat_user_tables.n_mod_since_analyze). */
+  modSinceAnalyze: number | null;
+  liveTup: number | null;
 }
 
 const SQL = `
@@ -51,7 +54,9 @@ SELECT c.relname                                    AS relation,
        s.last_vacuum                                AS "lastVacuum",
        s.last_autovacuum                            AS "lastAutovacuum",
        s.last_analyze                               AS "lastAnalyze",
-       s.last_autoanalyze                           AS "lastAutoanalyze"
+       s.last_autoanalyze                           AS "lastAutoanalyze",
+       s.n_mod_since_analyze                        AS "modSinceAnalyze",
+       s.n_live_tup                                 AS "liveTup"
 FROM pg_class c
 LEFT JOIN pg_stat_user_tables s ON s.relid = c.oid
 WHERE c.relkind IN ('r', 'p') AND c.relname = ANY($1);
@@ -67,6 +72,8 @@ interface Row {
   lastAutovacuum: string | null;
   lastAnalyze: string | null;
   lastAutoanalyze: string | null;
+  modSinceAnalyze: string | number | null;
+  liveTup: string | number | null;
 }
 
 const toNum = (v: string | number | null): number | null => (v == null ? null : Number(v));
@@ -89,5 +96,7 @@ export async function relationStats(
     lastAutovacuum: r.lastAutovacuum,
     lastAnalyze: r.lastAnalyze,
     lastAutoanalyze: r.lastAutoanalyze,
+    modSinceAnalyze: toNum(r.modSinceAnalyze),
+    liveTup: toNum(r.liveTup),
   }));
 }
