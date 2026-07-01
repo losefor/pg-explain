@@ -8,6 +8,7 @@ import { editorThemeExtensions } from "../lib/editorTheme.ts";
 
 export interface CodeEditorHandle {
   insertText: (text: string) => void;
+  focus: () => void;
 }
 
 export interface CodeEditorProps {
@@ -36,6 +37,9 @@ export const CodeEditor = forwardRef<CodeEditorHandle, CodeEditorProps>(function
       const { from, to } = view.state.selection.main;
       view.dispatch({ changes: { from, to, insert: text }, selection: { anchor: from + text.length } });
       view.focus();
+    },
+    focus() {
+      cm.current?.view?.focus();
     },
   }));
 

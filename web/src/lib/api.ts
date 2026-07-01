@@ -173,6 +173,9 @@ export interface DiffResult {
   removed: SigDelta[];
   newFindings: Diagnostic[];
   resolvedFindings: Diagnostic[];
+  /** Full trees for the side-by-side view (present when the server supports it). */
+  beforePlan?: PlanNode;
+  afterPlan?: PlanNode;
 }
 
 export interface ScriptUnit {

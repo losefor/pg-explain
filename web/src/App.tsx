@@ -1,49 +1,22 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, CheckCircle2, ChevronDown, ChevronRight, CornerDownRight, ExternalLink, Lock, Minus, Moon, Plus, Settings as SettingsIcon, Sun } from "lucide-react";
-import type { ReactNode } from "react";
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Tab } from "@/components/ui/tab";
+import { Toaster, toast } from "@/components/ui/toast";
+import { ChevronDown, ChevronRight, Lock, Moon, PanelLeft, Settings as SettingsIcon, Sun } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format as formatSqlText } from "sql-formatter";
 import { CodeEditor, type CodeEditorHandle } from "./components/CodeEditor.tsx";
-import { NodeDetail } from "./components/NodeDetail.tsx";
-import { api, type ApiError, type ConnectionPublic, type Diagnostic, type DiffResult, type LiveLocks, type PlanNode, type PlanStats, type RelationStat, type Report, type RunSummary, type ScriptAnalysis, type Settings, type Severity, type SigDelta, type StatGroup, type TableInfo } from "./lib/api.ts";
+import { DiffPanel } from "./components/DiffPanel.tsx";
+import { LiveLocksPanel } from "./components/LiveLocksPanel.tsx";
+import { Results } from "./components/Results.tsx";
+import { ScriptResults } from "./components/ScriptResults.tsx";
+import { SettingsPanel } from "./components/SettingsPanel.tsx";
+import { api, type ApiError, type ConnectionPublic, type DiffResult, type LiveLocks, type RelationStat, type Report, type RunSummary, type ScriptAnalysis, type Settings, type TableInfo } from "./lib/api.ts";
+import { SEV_COLOR } from "./lib/severity.ts";
+import { collectRelations, isScripty } from "./lib/utils.ts";
 
 const MANUAL_CONN = "__manual__";
-
-const PlanGraph = lazy(() => import("./components/PlanGraph.tsx").then((m) => ({ default: m.PlanGraph })));
-
-/** True when the SQL isn't a single plain SELECT — a DO block, multi-statement, or a write. */
-function isScripty(sql: string): boolean {
-  const s = sql.trim();
-  if (/^do\b/i.test(s)) return true;
-  if (/;\s*\S/.test(s.replace(/;\s*$/, ""))) return true;
-  return !/^(select|with|table|values|explain)\b/i.test(s);
-}
-
-function collectRelations(node: PlanNode, acc = new Set<string>()): string[] {
-  if (node.relationName) acc.add(node.relationName);
-  for (const c of node.children) collectRelations(c, acc);
-  return [...acc];
-}
-
-function fmtBytes(b: number | null): string {
-  if (b == null) return "—";
-  const u = ["B", "KiB", "MiB", "GiB", "TiB"];
-  let v = b;
-  let i = 0;
-  while (v >= 1024 && i < u.length - 1) { v /= 1024; i++; }
-  return `${i === 0 ? v : v.toFixed(1)} ${u[i]}`;
-}
-
-const SEV_COLOR: Record<Severity, string> = {
-  error: "var(--sev-error)",
-  warn: "var(--sev-warn)",
-  info: "var(--sev-info)",
-};
-const SEV_LABEL: Record<Severity, string> = { error: "Critical", warn: "Warning", info: "Note" };
-
-const isLock = (code: string) => /^PGX_(LOCK|DDL|WRITE|DROP_INDEX|SELECT_FOR|UPDATE_UNINDEXED)/.test(code);
 
 export function App() {
   const [dark, setDark] = useState(() => localStorage.getItem("theme") === "dark");
@@ -73,7 +46,21 @@ export function App() {
   const [catalog, setCatalog] = useState<TableInfo[]>([]);
   const [editorError, setEditorError] = useState<{ offset: number; message: string } | null>(null);
   const [openTable, setOpenTable] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [historyQuery, setHistoryQuery] = useState("");
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const editorRef = useRef<CodeEditorHandle>(null);
+
+  const filteredHistory = useMemo(() => {
+    const q = historyQuery.trim().toLowerCase();
+    if (!q) return history;
+    return history.filter(
+      (h) =>
+        h.verdict.toLowerCase().includes(q) ||
+        h.kind.includes(q) ||
+        new Date(h.createdAt).toLocaleString().toLowerCase().includes(q),
+    );
+  }, [history, historyQuery]);
 
   const schemaMap = useMemo(() => {
     const m: Record<string, string[]> = {};
@@ -84,13 +71,36 @@ export function App() {
     return m;
   }, [catalog]);
 
-  const formatSql = () => {
-    try {
-      setSql(formatSqlText(sql, { language: "postgresql" }));
-    } catch {
-      /* leave malformed SQL untouched */
-    }
-  };
+  const formatSql = useCallback(() => {
+    setSql((s) => {
+      try {
+        return formatSqlText(s, { language: "postgresql" });
+      } catch {
+        return s; // leave malformed SQL untouched
+      }
+    });
+  }, []);
+
+  useEffect(() => {
+    const inEditor = (t: EventTarget | null) =>
+      t instanceof HTMLElement && !!t.closest("input, textarea, [contenteditable=true]");
+    const onKey = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && !e.shiftKey && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        editorRef.current?.focus();
+      } else if (mod && e.shiftKey && e.key.toLowerCase() === "f") {
+        e.preventDefault();
+        formatSql();
+      } else if (e.key === "?" && !mod && !inEditor(e.target)) {
+        setShowShortcuts((v) => !v);
+      } else if (e.key === "Escape") {
+        setShowShortcuts(false);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [formatSql]);
 
   const refreshHistory = useCallback(() => {
     api.history().then((r) => setHistory(r.runs)).catch(() => {});
@@ -132,6 +142,7 @@ export function App() {
         : await api.analyze(plan, sql.trim() || undefined);
       setReport(r);
       setTableStats([]);
+      if (r.runId) window.location.hash = `run=${r.runId}`;
       refreshHistory();
       if (mode === "run") {
         const relations = collectRelations(r.plan);
@@ -155,7 +166,7 @@ export function App() {
     }
   };
 
-  const openRun = async (id: string) => {
+  const openRun = useCallback(async (id: string) => {
     try {
       const r = await api.getRun(id);
       setReport({ ...r.report, runId: r.id });
@@ -164,10 +175,19 @@ export function App() {
       setDiff(null);
       setScript(null);
       setErr(null);
+      window.location.hash = `run=${r.id}`;
     } catch (e) {
       setErr(e as ApiError);
+      toast("Run not found — it may have been deleted from history.", "error");
+      window.location.hash = "";
     }
-  };
+  }, []);
+
+  // Shareable URLs: #run=<id> deep-links a stored run on load.
+  useEffect(() => {
+    const id = window.location.hash.match(/^#run=(.+)$/)?.[1];
+    if (id) openRun(decodeURIComponent(id));
+  }, [openRun]);
 
   const onHistoryClick = (id: string) => {
     if (!diffMode) { openRun(id); return; }
@@ -204,8 +224,9 @@ export function App() {
   };
 
   return (
-    <div className="h-screen grid grid-cols-[260px_1fr] overflow-hidden">
-      <aside className="border-r flex flex-col min-h-0">
+    <div className={`h-screen grid overflow-hidden ${sidebarOpen ? "grid-cols-1 md:grid-cols-[260px_1fr]" : "grid-cols-1"}`}>
+      {sidebarOpen && (
+      <aside className="border-r hidden md:flex flex-col min-h-0" aria-label="History and schema">
         <div className="px-4 py-3 border-b">
           <div className="font-semibold">pgexplain studio</div>
           <div className="text-xs text-muted-foreground">PostgreSQL EXPLAIN, locally</div>
@@ -249,9 +270,22 @@ export function App() {
             </Button>
           </div>
         )}
+        {history.length > 0 && (
+          <div className="px-3 pb-2">
+            <Input
+              placeholder="Filter history…"
+              value={historyQuery}
+              onChange={(e) => setHistoryQuery(e.target.value)}
+              className="h-8 text-sm"
+            />
+          </div>
+        )}
         <div className="flex-1 overflow-y-auto px-2 pb-4 space-y-1">
           {history.length === 0 && <div className="px-2 text-sm text-muted-foreground">No runs yet.</div>}
-          {history.map((h) => (
+          {history.length > 0 && filteredHistory.length === 0 && (
+            <div className="px-2 text-sm text-muted-foreground">No runs match "{historyQuery}".</div>
+          )}
+          {filteredHistory.map((h) => (
             <Button
               key={h.id}
               variant="ghost"
@@ -318,10 +352,21 @@ export function App() {
           </div>
         )}
       </aside>
+      )}
 
       <main className="flex flex-col min-h-0 overflow-hidden">
         <div className="border-b p-4 space-y-3">
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center" role="tablist" aria-label="Input mode">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="hidden md:inline-flex"
+              title={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+              aria-label={sidebarOpen ? "Hide sidebar" : "Show sidebar"}
+              onClick={() => setSidebarOpen((v) => !v)}
+            >
+              <PanelLeft className="size-4" />
+            </Button>
             <Tab active={mode === "run"} onClick={() => setMode("run")}>Run query</Tab>
             <Tab active={mode === "paste"} onClick={() => setMode("paste")}>Paste plan</Tab>
           </div>
@@ -408,6 +453,34 @@ export function App() {
           {!settings && !err && !report && !live && !diff && !script && <Empty />}
         </div>
       </main>
+
+      {showShortcuts && (
+        <div
+          className="fixed inset-0 z-40 bg-black/30 flex items-center justify-center"
+          onClick={() => setShowShortcuts(false)}
+          role="dialog"
+          aria-label="Keyboard shortcuts"
+        >
+          <div className="rounded-lg border bg-card p-5 text-sm shadow-xl min-w-64" onClick={(e) => e.stopPropagation()}>
+            <div className="font-medium mb-3">Keyboard shortcuts</div>
+            <ShortcutRow keys="⌘/Ctrl + Enter" label="Run / analyze" />
+            <ShortcutRow keys="⌘/Ctrl + K" label="Focus SQL editor" />
+            <ShortcutRow keys="⇧ + ⌘/Ctrl + F" label="Format SQL" />
+            <ShortcutRow keys="?" label="Toggle this help" />
+            <ShortcutRow keys="Esc" label="Close" />
+          </div>
+        </div>
+      )}
+      <Toaster />
+    </div>
+  );
+}
+
+function ShortcutRow({ keys, label }: { keys: string; label: string }) {
+  return (
+    <div className="flex items-center gap-4 py-1">
+      <kbd className="rounded bg-secondary px-1.5 py-0.5 text-xs font-mono">{keys}</kbd>
+      <span className="text-muted-foreground ml-auto">{label}</span>
     </div>
   );
 }
@@ -419,418 +492,6 @@ function cleanConn(c: Record<string, string>): Record<string, unknown> {
     out[k] = k === "port" ? Number(v) : v;
   }
   return out;
-}
-
-function Results({ report, stats }: { report: Report; stats: RelationStat[] }) {
-  const [tab, setTab] = useState<"findings" | "plan" | "stats" | "tables" | "raw">("findings");
-  const [selected, setSelected] = useState<PlanNode | null>(null);
-  const [planView, setPlanView] = useState<"graph" | "text">("graph");
-  const locks = report.diagnostics.filter((d) => isLock(d.code));
-  const findings = report.diagnostics.filter((d) => !isLock(d.code));
-
-  return (
-    <div className="space-y-4">
-      <div
-        className="rounded-lg p-4 border-l-4"
-        style={{ borderColor: report.worstSeverity ? SEV_COLOR[report.worstSeverity] : "var(--sev-info)", background: "var(--card)" }}
-      >
-        <div className="font-medium">{report.verdict}</div>
-        <div className="text-xs text-muted-foreground mt-1">
-          {report.summary.executionTimeMs != null && <>exec {report.summary.executionTimeMs.toFixed(1)} ms · </>}
-          {report.summary.planningTimeMs != null && <>plan {report.summary.planningTimeMs.toFixed(1)} ms · </>}
-          {report.summary.serializationTimeMs != null && <>serialize {report.summary.serializationTimeMs.toFixed(1)} ms · </>}
-          {report.summary.nodeCount} nodes · {report.summary.hasBuffers ? "buffers" : "no buffers"}
-          {report.server && <> · PG {report.server.major}</>}
-        </div>
-        {(report.jit?.timing?.total != null || (report.triggers?.length ?? 0) > 0 || report.settings) && (
-          <div className="flex flex-wrap gap-1.5 mt-2 text-xs">
-            {report.jit?.timing?.total != null && (
-              <span className="rounded bg-secondary px-2 py-0.5">JIT {report.jit.timing.total.toFixed(1)} ms{report.jit.functions ? ` · ${report.jit.functions} fn` : ""}</span>
-            )}
-            {(report.triggers?.length ?? 0) > 0 && (
-              <span className="rounded bg-secondary px-2 py-0.5" title={report.triggers?.map((t) => `${t.name}: ${t.time?.toFixed(1)} ms`).join("\n")}>
-                {report.triggers?.length} trigger{report.triggers?.length === 1 ? "" : "s"}
-              </span>
-            )}
-            {report.settings && (
-              <span className="rounded bg-secondary px-2 py-0.5" title={Object.entries(report.settings).map(([k, v]) => `${k} = ${v}`).join("\n")}>
-                {Object.keys(report.settings).length} non-default setting{Object.keys(report.settings).length === 1 ? "" : "s"}
-              </span>
-            )}
-          </div>
-        )}
-      </div>
-
-      <div className="flex gap-2 items-center flex-wrap">
-        <Tab active={tab === "findings"} onClick={() => setTab("findings")}>Findings ({findings.length})</Tab>
-        <Tab active={tab === "plan"} onClick={() => setTab("plan")}>Plan</Tab>
-        {report.stats && <Tab active={tab === "stats"} onClick={() => setTab("stats")}>Stats</Tab>}
-        {stats.length > 0 && <Tab active={tab === "tables"} onClick={() => setTab("tables")}>Tables ({stats.length})</Tab>}
-        {locks.length > 0 && (
-          <Tab active={false} onClick={() => setTab("findings")}>
-            <span className="inline-flex items-center gap-1"><Lock className="size-3.5" /> {locks.length}</span>
-          </Tab>
-        )}
-        <Tab active={tab === "raw"} onClick={() => setTab("raw")}>Raw JSON</Tab>
-        <div className="ml-auto flex gap-1 items-center">
-          <span className="text-xs text-muted-foreground mr-1">Export</span>
-          <Button variant="secondary" size="sm" onClick={() => downloadText(JSON.stringify(report, null, 2), "report.json", "application/json")}>
-            JSON
-          </Button>
-          {report.runId && (
-            <>
-              <Button variant="secondary" size="sm" onClick={() => exportReport(report.runId as string, "markdown", "report.md", "text/markdown")}>
-                MD
-              </Button>
-              <Button variant="secondary" size="sm" onClick={() => exportReport(report.runId as string, "html", "report.html", "text/html")}>
-                HTML
-              </Button>
-            </>
-          )}
-        </div>
-      </div>
-
-      {tab === "findings" && (
-        <div className="space-y-3">
-          {locks.map((d, i) => <FindingCard key={`l${i}`} d={d} lock />)}
-          {findings.map((d, i) => <FindingCard key={`f${i}`} d={d} />)}
-          {report.diagnostics.length === 0 && (
-            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
-              <CheckCircle2 className="size-4" style={{ color: "var(--sev-info)" }} /> No findings — looks healthy.
-            </div>
-          )}
-        </div>
-      )}
-      {tab === "plan" && (
-        <div className="flex flex-col lg:flex-row gap-4">
-          <div className="flex-1 min-w-0">
-            <div className="flex gap-1 mb-2">
-              <Tab active={planView === "graph"} onClick={() => setPlanView("graph")}>Graph</Tab>
-              <Tab active={planView === "text"} onClick={() => setPlanView("text")}>Text</Tab>
-            </div>
-            {planView === "graph" ? (
-              <Suspense fallback={<div className="text-sm text-muted-foreground p-4">Loading graph…</div>}>
-                <PlanGraph root={report.plan} onSelect={setSelected} selectedId={selected?.id} />
-              </Suspense>
-            ) : (
-              <div className="overflow-x-auto font-mono text-sm">
-                <PlanTree node={report.plan} depth={0} onSelect={setSelected} selectedId={selected?.id} />
-              </div>
-            )}
-          </div>
-          {selected && <NodeDetail node={selected} onClose={() => setSelected(null)} />}
-        </div>
-      )}
-      {tab === "stats" && report.stats && <StatsTab stats={report.stats} hasAnalyze={report.summary.hasAnalyze} />}
-      {tab === "tables" && (
-        <div className="space-y-2">
-          {stats.map((s) => (
-            <div key={s.relation} className="rounded-lg border p-3 text-sm" style={{ background: "var(--card)" }}>
-              <div className="font-medium">{s.relation}</div>
-              <div className="text-muted-foreground mt-1">
-                ~{s.estRows?.toLocaleString() ?? "?"} rows · {fmtBytes(s.totalBytes)} · {s.indexes.length} index{s.indexes.length === 1 ? "" : "es"}
-                {!s.lastAnalyze && !s.lastAutoanalyze && <span style={{ color: "var(--sev-warn)" }}> · never analyzed (stats may be stale)</span>}
-              </div>
-              {s.indexes.length > 0 && <div className="text-xs text-muted-foreground mt-1">indexes: {s.indexes.join(", ")}</div>}
-            </div>
-          ))}
-        </div>
-      )}
-      {tab === "raw" && <pre className="text-xs overflow-x-auto bg-secondary rounded-md p-3">{JSON.stringify(report, null, 2)}</pre>}
-    </div>
-  );
-}
-
-function StatsTab({ stats, hasAnalyze }: { stats: PlanStats; hasAnalyze: boolean }) {
-  return (
-    <div className="grid gap-4 md:grid-cols-3">
-      <StatTable title="By node type" rows={stats.byNodeType} hasAnalyze={hasAnalyze} />
-      <StatTable title="By table" rows={stats.byRelation} hasAnalyze={hasAnalyze} />
-      <StatTable title="By index" rows={stats.byIndex} hasAnalyze={hasAnalyze} />
-    </div>
-  );
-}
-
-function StatTable({ title, rows, hasAnalyze }: { title: string; rows: StatGroup[]; hasAnalyze: boolean }) {
-  const [sort, setSort] = useState<"selfMs" | "count" | "key">(hasAnalyze ? "selfMs" : "count");
-  const sorted = [...rows].sort((a, b) =>
-    sort === "key" ? a.key.localeCompare(b.key) : sort === "count" ? b.count - a.count : b.selfMs - a.selfMs,
-  );
-  const maxMs = Math.max(...rows.map((r) => r.selfMs), 0.0001);
-  const head = (id: "selfMs" | "count" | "key", label: string, cls = "") => (
-    <Button
-      variant="ghost"
-      onClick={() => setSort(id)}
-      className={`h-auto p-0 text-xs font-medium ${sort === id ? "text-foreground" : "text-muted-foreground"} ${cls}`}
-    >
-      {label}
-    </Button>
-  );
-  return (
-    <div className="rounded-lg border p-3 min-w-0" style={{ background: "var(--card)" }}>
-      <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
-        {title} <span className="normal-case">· {rows.length}</span>
-      </div>
-      {rows.length === 0 ? (
-        <div className="text-sm text-muted-foreground">—</div>
-      ) : (
-        <table className="w-full text-sm text-muted-foreground">
-          <thead className="text-left text-xs">
-            <tr>
-              <th className="font-medium">{head("key", "Name")}</th>
-              <th className="font-medium text-right w-10">{head("count", "n")}</th>
-              {hasAnalyze && <th className="font-medium text-right">{head("selfMs", "self")}</th>}
-            </tr>
-          </thead>
-          <tbody>
-            {sorted.map((r) => (
-              <tr key={r.key} className="border-t border-border/60">
-                <td className="py-1 pr-2 text-foreground truncate max-w-[10rem]" title={r.key}>{r.key}</td>
-                <td className="py-1 text-right tabular-nums">{r.count}</td>
-                {hasAnalyze && (
-                  <td className="py-1 text-right tabular-nums whitespace-nowrap">
-                    <span
-                      className="inline-block align-middle mr-1 h-1.5 rounded"
-                      style={{ width: `${Math.round((r.selfMs / maxMs) * 36)}px`, background: "var(--sev-info)" }}
-                    />
-                    {r.selfMs.toFixed(1)}ms <span className="text-xs">({r.pctOfTotal.toFixed(0)}%)</span>
-                  </td>
-                )}
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
-    </div>
-  );
-}
-
-function FindingCard({ d, lock }: { d: Diagnostic; lock?: boolean }) {
-  return (
-    <div className="rounded-lg border p-3" style={{ background: "var(--card)" }}>
-      <div className="flex items-center gap-2">
-        <span className="text-xs font-semibold px-2 py-0.5 rounded text-white" style={{ background: SEV_COLOR[d.severity] }}>
-          {SEV_LABEL[d.severity]}
-        </span>
-        {lock && <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-secondary"><Lock className="size-3" /> lock</span>}
-        <span className="font-medium">{d.title}</span>
-        <span className="text-xs text-muted-foreground ml-auto">{d.code}</span>
-      </div>
-      <p className="text-sm mt-2"><b>What:</b> {d.detail}</p>
-      <p className="text-sm text-muted-foreground"><b>Why:</b> {d.cause}</p>
-      <p className="text-sm mt-1"><b>Fix:</b> {d.remediation.summary}</p>
-      {d.remediation.commands?.map((cmd, i) => (
-        <pre key={i} className="text-xs bg-secondary rounded p-2 mt-2 overflow-x-auto">{cmd.sql ?? cmd.shell}</pre>
-      ))}
-      {d.docsUrl && <a className="inline-flex items-center gap-1 text-xs text-sev-info underline" href={d.docsUrl} target="_blank" rel="noreferrer">PostgreSQL docs <ExternalLink className="size-3" /></a>}
-    </div>
-  );
-}
-
-function PlanTree({ node, depth, onSelect, selectedId }: { node: PlanNode; depth: number; onSelect: (n: PlanNode) => void; selectedId?: number }) {
-  const m = node.metrics;
-  const pct = m.pctOfTotal ?? 0;
-  const heat = pct >= 50 ? "var(--sev-error)" : pct >= 20 ? "var(--sev-warn)" : undefined;
-  const label = `${node.nodeType}${node.relationName ? ` on ${node.relationName}` : ""}${node.indexName ? ` using ${node.indexName}` : ""}`;
-  const neverRan = node.actualLoops === 0;
-  return (
-    <div>
-      <div style={{ paddingLeft: `${depth * 16}px` }}>
-        <Button
-          variant="ghost"
-          onClick={() => onSelect(node)}
-          className={`h-auto px-1 -mx-1 justify-start font-normal whitespace-normal text-left ${selectedId === node.id ? "bg-accent ring-1 ring-[var(--sev-info)]" : ""}`}
-        >
-          <span style={{ color: heat, fontWeight: heat ? 600 : 400 }}>
-            {depth > 0 && <CornerDownRight className="inline size-3 mr-1 -translate-y-px text-muted-foreground" />}
-            {label}
-          </span>
-          <span className="text-muted-foreground">
-            {neverRan && " (never executed)"}
-            {m.totalRows != null && `  rows=${m.totalRows.toLocaleString()}`}
-            {m.estimateFactor != null && m.estimateFactor >= 2 && m.estimateDirection !== "accurate" && ` (${m.estimateFactor.toFixed(0)}× ${m.estimateDirection})`}
-            {m.selfMs != null && `  self ${m.selfMs.toFixed(1)} ms`}
-            {m.pctOfTotal != null && m.pctOfTotal >= 1 && ` (${m.pctOfTotal.toFixed(0)}%)`}
-          </span>
-        </Button>
-      </div>
-      {node.children.map((c) => <PlanTree key={c.id} node={c} depth={depth + 1} onSelect={onSelect} selectedId={selectedId} />)}
-    </div>
-  );
-}
-
-function ScriptResults({ script }: { script: ScriptAnalysis }) {
-  const analyzed = script.units.filter((u) => u.status === "analyzed").length;
-  const skipped = script.units.length - analyzed;
-  return (
-    <div className="space-y-4">
-      <div className="rounded-lg p-3 border-l-4" style={{ borderColor: "var(--sev-info)", background: "var(--card)" }}>
-        <div className="font-medium">Cost-only analysis — nothing was executed</div>
-        <div className="text-xs text-muted-foreground mt-1">
-          Extracted {script.units.length} statement(s) · {analyzed} analyzed, {skipped} skipped. No rows
-          touched, no sequences advanced, no triggers fired{script.serverMajor ? ` · PG ${script.serverMajor}` : ""}.
-        </div>
-      </div>
-      {script.units.map((u, i) => (
-        <div key={`${u.label}-${i}`} className="space-y-2">
-          <div className="flex items-center gap-1 font-medium text-sm">
-            <ChevronRight className="size-4 shrink-0" /> {u.label}
-            {u.loopNote && <span className="text-muted-foreground"> ({u.loopNote})</span>}
-          </div>
-          {u.status === "analyzed" && u.report ? (
-            <Results report={u.report} stats={[]} />
-          ) : (
-            <div className="rounded-lg border p-3 text-sm" style={{ background: "var(--card)" }}>
-              <span style={{ color: u.status === "error" ? "var(--sev-warn)" : "var(--muted-foreground)" }}>
-                {u.status === "error" ? "Could not analyze" : "Skipped"}:
-              </span>{" "}
-              {u.reason}
-              {u.errorCode && <span className="text-xs text-muted-foreground"> [{u.errorCode}]</span>}
-            </div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function LiveLocksPanel({ live, onClose }: { live: LiveLocks; onClose: () => void }) {
-  return (
-    <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <h2 className="font-medium">Live locks</h2>
-        <span className="text-xs text-muted-foreground">
-          {live.sessions.length} client sessions · {live.blocked.length} blocked
-        </span>
-        <Button variant="secondary" size="sm" className="ml-auto" onClick={onClose}>Close</Button>
-      </div>
-      {live.blocked.length === 0 ? (
-        <div className="text-sm text-muted-foreground rounded-lg border p-4" style={{ background: "var(--card)" }}>
-          No lock contention right now — nothing is waiting on another session.
-        </div>
-      ) : (
-        live.blocked.map((s) => (
-          <div key={s.pid} className="rounded-lg border-l-4 p-3" style={{ borderColor: "var(--sev-warn)", background: "var(--card)" }}>
-            <div className="text-sm">
-              <b>pid {s.pid}</b> ({s.user ?? "?"}) is <b>blocked by</b> pid {s.blockedBy.join(", ")}
-              {s.ageSeconds != null && <span className="text-muted-foreground"> · waiting {s.ageSeconds.toFixed(0)}s</span>}
-              {s.waitEvent && <span className="text-muted-foreground"> · {s.waitEvent}</span>}
-            </div>
-            {s.query && <pre className="text-xs bg-secondary rounded p-2 mt-2 overflow-x-auto">{s.query}</pre>}
-            <p className="text-xs text-muted-foreground mt-2">
-              Inspect the blocker; if needed, cancel it with <code>SELECT pg_cancel_backend({s.blockedBy[0]});</code> or terminate with <code>pg_terminate_backend(…)</code>.
-            </p>
-          </div>
-        ))
-      )}
-    </div>
-  );
-}
-
-function SettingsPanel({ settings, onClose }: { settings: Settings; onClose: () => void }) {
-  const [thresholds, setThresholds] = useState<Record<string, number>>(settings.thresholds);
-  const [saved, setSaved] = useState(false);
-
-  const save = async () => {
-    await api.saveSettings({ thresholds, rules: settings.rules });
-    setSaved(true);
-    setTimeout(() => setSaved(false), 1500);
-  };
-
-  return (
-    <div className="max-w-2xl space-y-4">
-      <div className="flex items-center gap-2">
-        <h2 className="font-medium">Settings</h2>
-        <span className="text-xs text-muted-foreground">Advisor thresholds — saved to your data dir and applied to new analyses.</span>
-        <Button variant="secondary" size="sm" className="ml-auto" onClick={onClose}>Close</Button>
-      </div>
-      <div className="grid grid-cols-2 gap-2">
-        {Object.entries(thresholds).map(([key, value]) => (
-          <label key={key} className="flex items-center gap-2 text-sm">
-            <span className="flex-1 text-muted-foreground">{key}</span>
-            <Input
-              type="number"
-              value={value}
-              onChange={(e) => setThresholds({ ...thresholds, [key]: Number(e.target.value) })}
-              className="w-28"
-            />
-          </label>
-        ))}
-      </div>
-      <div className="flex items-center gap-3">
-        <Button onClick={save}>Save</Button>
-        {saved && <span className="inline-flex items-center gap-1 text-sm" style={{ color: "var(--sev-info)" }}><Check className="size-4" /> Saved</span>}
-        <span className="text-xs text-muted-foreground">Per-rule enable/severity overrides are editable in the config file.</span>
-      </div>
-    </div>
-  );
-}
-
-function DiffPanel({ diff, onClose }: { diff: DiffResult; onClose: () => void }) {
-  const slower = (diff.execDeltaMs ?? 0) > 0;
-  const headline =
-    diff.execDeltaMs == null
-      ? "Compared plans"
-      : `${Math.abs(diff.execDeltaMs).toFixed(1)} ms ${slower ? "slower" : "faster"}${diff.execDeltaPct != null ? ` (${diff.execDeltaPct >= 0 ? "+" : ""}${diff.execDeltaPct.toFixed(1)}%)` : ""}`;
-
-  const rows = (title: string, items: SigDelta[], color: string) =>
-    items.length > 0 && (
-      <div>
-        <div className="text-sm font-medium mt-3 mb-1">{title}</div>
-        {items.slice(0, 12).map((d) => (
-          <div key={d.signature} className="text-sm flex gap-2">
-            <span className="flex-1 truncate">{d.signature}</span>
-            <span style={{ color }}>
-              {d.deltaMs >= 0 ? "+" : ""}
-              {d.deltaMs.toFixed(1)} ms{d.deltaPct != null ? ` (${d.deltaPct >= 0 ? "+" : ""}${d.deltaPct.toFixed(0)}%)` : ""}
-            </span>
-          </div>
-        ))}
-      </div>
-    );
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center gap-2">
-        <h2 className="font-medium">Diff (before → after)</h2>
-        <span className="text-sm" style={{ color: slower ? "var(--sev-error)" : "var(--sev-info)" }}>{headline}</span>
-        <Button variant="secondary" size="sm" className="ml-auto" onClick={onClose}>Close</Button>
-      </div>
-      {rows("Regressed (slower)", diff.regressed, "var(--sev-error)")}
-      {rows("Improved (faster)", diff.improved, "var(--sev-info)")}
-      {rows("Added nodes", diff.added, "var(--muted-foreground)")}
-      {rows("Removed nodes", diff.removed, "var(--muted-foreground)")}
-      {diff.newFindings.length > 0 && (
-        <div>
-          <div className="text-sm font-medium mt-3 mb-1" style={{ color: "var(--sev-error)" }}>New findings</div>
-          {diff.newFindings.map((f, i) => <div key={i} className="flex items-center gap-1 text-sm"><Plus className="size-3.5 shrink-0" style={{ color: "var(--sev-error)" }} /> {f.title} <span className="text-xs text-muted-foreground">{f.code}</span></div>)}
-        </div>
-      )}
-      {diff.resolvedFindings.length > 0 && (
-        <div>
-          <div className="text-sm font-medium mt-3 mb-1" style={{ color: "var(--sev-info)" }}>Resolved findings</div>
-          {diff.resolvedFindings.map((f, i) => <div key={i} className="flex items-center gap-1 text-sm"><Minus className="size-3.5 shrink-0" style={{ color: "var(--sev-info)" }} /> {f.title} <span className="text-xs text-muted-foreground">{f.code}</span></div>)}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function downloadText(content: string, filename: string, mime: string) {
-  const url = URL.createObjectURL(new Blob([content], { type: mime }));
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `pgexplain-${filename}`;
-  a.click();
-  URL.revokeObjectURL(url);
-}
-
-async function exportReport(runId: string, format: "markdown" | "html" | "text", filename: string, mime: string) {
-  try {
-    downloadText(await api.export(runId, format), filename, mime);
-  } catch {
-    // best-effort; the report tab still shows everything
-  }
 }
 
 function ErrorCard({ err }: { err: ApiError }) {
@@ -851,13 +512,5 @@ function Empty() {
         <div className="text-sm mt-1">Findings tell you what's slow and exactly how to fix it.</div>
       </div>
     </div>
-  );
-}
-
-function Tab({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
-  return (
-    <Button variant={active ? "default" : "secondary"} size="sm" onClick={onClick}>
-      {children}
-    </Button>
   );
 }
