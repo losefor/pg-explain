@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import dagre from "@dagrejs/dagre";
 import {
   Background,
@@ -137,16 +138,16 @@ export function PlanGraph({
         <Controls showInteractive={false} />
         <MiniMap pannable zoomable />
       </ReactFlow>
-      <div className="absolute top-2 right-2 z-10 flex gap-1 rounded-md p-1 text-xs" style={{ background: "color-mix(in oklch, var(--card) 85%, transparent)" }}>
+      <div className="absolute top-2 right-2 z-10 flex gap-1 rounded-md p-1" style={{ background: "color-mix(in oklch, var(--card) 85%, transparent)" }}>
         {HEAT_MODES.map((h) => (
-          <button
+          <Button
             key={h.id}
-            type="button"
+            variant={heat === h.id ? "default" : "secondary"}
+            size="sm"
             onClick={() => setHeat(h.id)}
-            className={`px-2 py-0.5 rounded ${heat === h.id ? "bg-primary text-primary-foreground" : "bg-secondary"}`}
           >
             {h.label}
-          </button>
+          </Button>
         ))}
       </div>
     </div>

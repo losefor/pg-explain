@@ -1,3 +1,6 @@
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Check, CheckCircle2, ChevronDown, ChevronRight, CornerDownRight, ExternalLink, Lock, Minus, Moon, Plus, Settings as SettingsIcon, Sun } from "lucide-react";
 import type { ReactNode } from "react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -6,14 +9,15 @@ import { CodeEditor, type CodeEditorHandle } from "./components/CodeEditor.tsx";
 import { NodeDetail } from "./components/NodeDetail.tsx";
 import { api, type ApiError, type ConnectionPublic, type Diagnostic, type DiffResult, type LiveLocks, type PlanNode, type PlanStats, type RelationStat, type Report, type RunSummary, type ScriptAnalysis, type Settings, type Severity, type SigDelta, type StatGroup, type TableInfo } from "./lib/api.ts";
 
-// React Flow + dagre are heavy; load the graph only when the Plan tab needs it.
+const MANUAL_CONN = "__manual__";
+
 const PlanGraph = lazy(() => import("./components/PlanGraph.tsx").then((m) => ({ default: m.PlanGraph })));
 
 /** True when the SQL isn't a single plain SELECT — a DO block, multi-statement, or a write. */
 function isScripty(sql: string): boolean {
   const s = sql.trim();
   if (/^do\b/i.test(s)) return true;
-  if (/;\s*\S/.test(s.replace(/;\s*$/, ""))) return true; // more than one statement
+  if (/;\s*\S/.test(s.replace(/;\s*$/, ""))) return true;
   return !/^(select|with|table|values|explain)\b/i.test(s);
 }
 
@@ -42,7 +46,6 @@ const SEV_LABEL: Record<Severity, string> = { error: "Critical", warn: "Warning"
 const isLock = (code: string) => /^PGX_(LOCK|DDL|WRITE|DROP_INDEX|SELECT_FOR|UPDATE_UNINDEXED)/.test(code);
 
 export function App() {
-  // Default: light mode. Persisted in localStorage so the preference survives refresh.
   const [dark, setDark] = useState(() => localStorage.getItem("theme") === "dark");
 
   useEffect(() => {
@@ -72,7 +75,6 @@ export function App() {
   const [openTable, setOpenTable] = useState<string | null>(null);
   const editorRef = useRef<CodeEditorHandle>(null);
 
-  // lang-sql autocomplete map: bare name + schema-qualified name → columns.
   const schemaMap = useMemo(() => {
     const m: Record<string, string[]> = {};
     for (const t of catalog) {
@@ -99,18 +101,11 @@ export function App() {
   useEffect(refreshHistory, [refreshHistory]);
   useEffect(refreshConnections, [refreshConnections]);
 
-  // Load the table/column catalog for autocomplete + the explorer when a saved connection is picked.
-  // (Manual connections load lazily after the first successful run — see submit().)
   useEffect(() => {
-    if (!connId) {
-      setCatalog([]);
-      return;
-    }
+    if (!connId) { setCatalog([]); return; }
     let cancelled = false;
     api.catalog({ connectionId: connId }).then((r) => !cancelled && setCatalog(r.tables)).catch(() => {});
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [connId]);
 
   const saveConnection = async () => {
@@ -127,28 +122,22 @@ export function App() {
     setEditorError(null);
     try {
       const connBody = connId ? { connectionId: connId } : { connection: cleanConn(conn) };
-
-      // DO blocks, multi-statement scripts, and writes → cost-only, never executed.
       if (mode === "run" && isScripty(sql)) {
         setScript(await api.analyzeSql({ ...connBody, sql }));
         setReport(null);
         return;
       }
-
-      const r =
-        mode === "run"
-          ? await api.run({ ...connBody, sql })
-          : await api.analyze(plan, sql.trim() || undefined);
+      const r = mode === "run"
+        ? await api.run({ ...connBody, sql })
+        : await api.analyze(plan, sql.trim() || undefined);
       setReport(r);
       setTableStats([]);
       refreshHistory();
-      // Enrich a live run with table size/index/vacuum stats (same connection).
       if (mode === "run") {
         const relations = collectRelations(r.plan);
         if (relations.length) {
           api.schema({ ...connBody, relations }).then((s) => setTableStats(s.relations)).catch(() => {});
         }
-        // Lazily populate autocomplete for manual connections once we know they work.
         if (!connId && catalog.length === 0) {
           api.catalog(connBody).then((res) => setCatalog(res.tables)).catch(() => {});
         }
@@ -157,7 +146,6 @@ export function App() {
       const ae = e as ApiError;
       setErr(ae);
       setReport(null);
-      // Underline the offending spot inline for single-statement runs that carry a pg position.
       const pos = ae.meta?.position;
       if (mode === "run" && typeof pos === "number" && pos > 0) {
         setEditorError({ offset: pos - 1, message: ae.detail || ae.title });
@@ -170,7 +158,7 @@ export function App() {
   const openRun = async (id: string) => {
     try {
       const r = await api.getRun(id);
-      setReport({ ...r.report, runId: r.id }); // carry the id so export works after reopening
+      setReport({ ...r.report, runId: r.id });
       setTableStats([]);
       setLive(null);
       setDiff(null);
@@ -182,10 +170,7 @@ export function App() {
   };
 
   const onHistoryClick = (id: string) => {
-    if (!diffMode) {
-      openRun(id);
-      return;
-    }
+    if (!diffMode) { openRun(id); return; }
     setPicked((p) => (p.includes(id) ? p.filter((x) => x !== id) : [...p, id].slice(-2)));
   };
 
@@ -193,7 +178,6 @@ export function App() {
     if (picked.length !== 2) return;
     setErr(null);
     try {
-      // picked is newest-first selection order; diff older → newer.
       const [a, b] = picked;
       const order = history.findIndex((h) => h.id === a) > history.findIndex((h) => h.id === b);
       setDiff(await api.diff(order ? (a as string) : (b as string), order ? (b as string) : (a as string)));
@@ -226,61 +210,62 @@ export function App() {
           <div className="font-semibold">pgexplain studio</div>
           <div className="text-xs text-muted-foreground">PostgreSQL EXPLAIN, locally</div>
         </div>
-        <div className="px-3 py-2 flex items-center gap-2">
+        <div className="px-3 py-2 flex items-center gap-1">
           <span className="text-xs uppercase tracking-wide text-muted-foreground flex-1">History</span>
-          <button
-            type="button"
+          <Button
+            variant={diffMode ? "default" : "secondary"}
+            size="sm"
             onClick={() => { setDiffMode((v) => !v); setPicked([]); }}
-            className={`text-xs rounded px-2 py-0.5 ${diffMode ? "bg-primary text-primary-foreground" : "bg-secondary"}`}
           >
             Compare
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
             title={dark ? "Switch to light mode" : "Switch to dark mode"}
             onClick={() => setDark((v) => !v)}
-            className="inline-flex items-center rounded px-2 py-1 bg-secondary"
           >
             {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
             title="Settings"
             onClick={async () => setSettings(await api.settings())}
-            className="inline-flex items-center rounded px-2 py-1 bg-secondary"
           >
             <SettingsIcon className="size-4" />
-          </button>
+          </Button>
         </div>
         {diffMode && (
           <div className="px-3 pb-2">
-            <button
-              type="button"
+            <Button
+              variant="secondary"
+              size="sm"
+              className="w-full"
               disabled={picked.length !== 2}
               onClick={runDiff}
-              className="w-full text-xs rounded-md bg-secondary px-2 py-1 disabled:opacity-50"
             >
               Diff selected ({picked.length}/2)
-            </button>
+            </Button>
           </div>
         )}
         <div className="flex-1 overflow-y-auto px-2 pb-4 space-y-1">
           {history.length === 0 && <div className="px-2 text-sm text-muted-foreground">No runs yet.</div>}
           {history.map((h) => (
-            <button
-              type="button"
+            <Button
               key={h.id}
+              variant="ghost"
               onClick={() => onHistoryClick(h.id)}
-              className={`w-full text-left rounded-md px-2 py-2 hover:bg-accent text-sm ${picked.includes(h.id) ? "ring-2 ring-[var(--sev-info)]" : ""}`}
+              className={`w-full flex-col items-start h-auto px-2 py-2 font-normal whitespace-normal ${picked.includes(h.id) ? "ring-2 ring-[var(--sev-info)]" : ""}`}
             >
-              <div className="flex items-center gap-2">
-                <span className="size-2 rounded-full" style={{ background: h.worstSeverity ? SEV_COLOR[h.worstSeverity] : "var(--sev-info)" }} />
-                <span className="truncate flex-1">{h.verdict || h.kind}</span>
+              <div className="flex items-center gap-2 w-full">
+                <span className="size-2 rounded-full shrink-0" style={{ background: h.worstSeverity ? SEV_COLOR[h.worstSeverity] : "var(--sev-info)" }} />
+                <span className="truncate flex-1 text-sm text-left">{h.verdict || h.kind}</span>
               </div>
-              <div className="text-xs text-muted-foreground mt-0.5">
+              <div className="text-xs text-muted-foreground mt-0.5 w-full text-left">
                 {h.kind} · {h.execMs != null ? `${h.execMs.toFixed(0)} ms` : "no timing"}
               </div>
-            </button>
+            </Button>
           ))}
         </div>
 
@@ -296,29 +281,33 @@ export function App() {
                 return (
                   <div key={key}>
                     <div className="flex items-center gap-1">
-                      <button type="button" onClick={() => setOpenTable(open ? null : key)} className="inline-flex w-4 justify-center text-muted-foreground">
+                      <Button
+                        variant="ghost"
+                        onClick={() => setOpenTable(open ? null : key)}
+                        className="h-5 w-5 p-0 text-muted-foreground shrink-0"
+                      >
                         {open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-                      </button>
-                      <button
-                        type="button"
+                      </Button>
+                      <Button
+                        variant="ghost"
                         onClick={() => editorRef.current?.insertText(t.name)}
                         title={`${key} — click to insert`}
-                        className="flex-1 text-left rounded px-1 py-0.5 hover:bg-accent text-sm truncate"
+                        className="flex-1 justify-start h-7 px-1 text-sm min-w-0"
                       >
-                        {t.name}
-                      </button>
+                        <span className="truncate">{t.name}</span>
+                      </Button>
                     </div>
                     {open && (
                       <div className="ml-5 border-l pl-2 space-y-0.5 py-0.5">
                         {t.columns.map((col) => (
-                          <button
-                            type="button"
+                          <Button
                             key={col}
+                            variant="ghost"
                             onClick={() => editorRef.current?.insertText(col)}
-                            className="block w-full text-left rounded px-1 py-0.5 hover:bg-accent text-xs text-muted-foreground truncate"
+                            className="w-full justify-start h-6 px-1 text-xs text-muted-foreground font-normal min-w-0"
                           >
-                            {col}
-                          </button>
+                            <span className="truncate">{col}</span>
+                          </Button>
                         ))}
                       </div>
                     )}
@@ -340,31 +329,32 @@ export function App() {
           {mode === "run" && (
             <div className="space-y-2">
               <div className="flex items-center gap-2">
-                <select
-                  value={connId}
-                  onChange={(e) => setConnId(e.target.value)}
-                  className="rounded-md bg-secondary px-2 py-1.5 text-sm flex-1"
-                >
-                  <option value="">Manual connection / PG* env</option>
-                  {connections.map((cn) => (
-                    <option key={cn.id} value={cn.id}>
-                      {cn.name} {cn.database ? `(${cn.database})` : ""}
-                    </option>
-                  ))}
-                </select>
+                <Select value={connId || MANUAL_CONN} onValueChange={(v) => setConnId(v === MANUAL_CONN ? "" : v)}>
+                  <SelectTrigger className="flex-1">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={MANUAL_CONN}>Manual connection / PG* env</SelectItem>
+                    {connections.map((cn) => (
+                      <SelectItem key={cn.id} value={cn.id}>
+                        {cn.name} {cn.database ? `(${cn.database})` : ""}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {!connId && (
-                  <button type="button" onClick={saveConnection} className="rounded-md bg-secondary px-3 py-1.5 text-sm hover:bg-accent">
+                  <Button variant="secondary" size="sm" onClick={saveConnection}>
                     Save connection
-                  </button>
+                  </Button>
                 )}
               </div>
               {!connId && (
                 <div className="grid grid-cols-5 gap-2">
-                  <Input placeholder="host (blank = local socket)" value={conn.host} onChange={(v) => setConn({ ...conn, host: v })} />
-                  <Input placeholder="port" value={conn.port} onChange={(v) => setConn({ ...conn, port: v })} />
-                  <Input placeholder="database" value={conn.database} onChange={(v) => setConn({ ...conn, database: v })} />
-                  <Input placeholder="user" value={conn.user} onChange={(v) => setConn({ ...conn, user: v })} />
-                  <Input placeholder="password" type="password" value={conn.password} onChange={(v) => setConn({ ...conn, password: v })} />
+                  <Input placeholder="host (blank = local socket)" value={conn.host} onChange={(e) => setConn({ ...conn, host: e.target.value })} />
+                  <Input placeholder="port" value={conn.port} onChange={(e) => setConn({ ...conn, port: e.target.value })} />
+                  <Input placeholder="database" value={conn.database} onChange={(e) => setConn({ ...conn, database: e.target.value })} />
+                  <Input placeholder="user" value={conn.user} onChange={(e) => setConn({ ...conn, user: e.target.value })} />
+                  <Input type="password" placeholder="password" value={conn.password} onChange={(e) => setConn({ ...conn, password: e.target.value })} />
                 </div>
               )}
             </div>
@@ -372,13 +362,7 @@ export function App() {
 
           {mode === "paste" ? (
             <div className="rounded-md border overflow-hidden">
-              <CodeEditor
-                language="json"
-                value={plan}
-                onChange={setPlan}
-                placeholder="Paste EXPLAIN (FORMAT JSON) output here"
-                minHeight="140px"
-              />
+              <CodeEditor language="json" value={plan} onChange={setPlan} placeholder="Paste EXPLAIN (FORMAT JSON) output here" minHeight="140px" />
             </div>
           ) : null}
 
@@ -397,26 +381,16 @@ export function App() {
           </div>
 
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={submit}
-              disabled={busy}
-              className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium disabled:opacity-50"
-            >
+            <Button onClick={submit} disabled={busy}>
               {busy ? "Explaining…" : mode === "run" ? "Explain" : "Analyze"}
-            </button>
-            <button
-              type="button"
-              onClick={formatSql}
-              className="rounded-md bg-secondary px-3 py-2 text-sm hover:bg-accent"
-              title="Format SQL (Shift+⌘/Ctrl+F)"
-            >
+            </Button>
+            <Button variant="secondary" onClick={formatSql} title="Format SQL (Shift+⌘/Ctrl+F)">
               Format
-            </button>
+            </Button>
             {mode === "run" && (
-              <button type="button" onClick={checkLive} disabled={busy} className="inline-flex items-center gap-1.5 rounded-md bg-secondary px-3 py-2 text-sm disabled:opacity-50">
+              <Button variant="secondary" onClick={checkLive} disabled={busy}>
                 <Lock className="size-4" /> Live locks
-              </button>
+              </Button>
             )}
             <span className="text-xs text-muted-foreground">
               {mode === "run" ? "Runs EXPLAIN (ANALYZE, BUFFERS) safely — rolled back, read-only." : "No database needed."}
@@ -487,26 +461,30 @@ function Results({ report, stats }: { report: Report; stats: RelationStat[] }) {
         )}
       </div>
 
-      <div className="flex gap-2 items-center">
+      <div className="flex gap-2 items-center flex-wrap">
         <Tab active={tab === "findings"} onClick={() => setTab("findings")}>Findings ({findings.length})</Tab>
         <Tab active={tab === "plan"} onClick={() => setTab("plan")}>Plan</Tab>
         {report.stats && <Tab active={tab === "stats"} onClick={() => setTab("stats")}>Stats</Tab>}
         {stats.length > 0 && <Tab active={tab === "tables"} onClick={() => setTab("tables")}>Tables ({stats.length})</Tab>}
-        {locks.length > 0 && <Tab active={false} onClick={() => setTab("findings")}><span className="inline-flex items-center gap-1"><Lock className="size-3.5" /> {locks.length}</span></Tab>}
+        {locks.length > 0 && (
+          <Tab active={false} onClick={() => setTab("findings")}>
+            <span className="inline-flex items-center gap-1"><Lock className="size-3.5" /> {locks.length}</span>
+          </Tab>
+        )}
         <Tab active={tab === "raw"} onClick={() => setTab("raw")}>Raw JSON</Tab>
-        <div className="ml-auto flex gap-1">
-          <span className="text-xs text-muted-foreground self-center mr-1">Export</span>
-          <button type="button" className="rounded-md bg-secondary px-2 py-1.5 text-sm hover:bg-accent" onClick={() => downloadText(JSON.stringify(report, null, 2), "report.json", "application/json")}>
+        <div className="ml-auto flex gap-1 items-center">
+          <span className="text-xs text-muted-foreground mr-1">Export</span>
+          <Button variant="secondary" size="sm" onClick={() => downloadText(JSON.stringify(report, null, 2), "report.json", "application/json")}>
             JSON
-          </button>
+          </Button>
           {report.runId && (
             <>
-              <button type="button" className="rounded-md bg-secondary px-2 py-1.5 text-sm hover:bg-accent" onClick={() => exportReport(report.runId as string, "markdown", "report.md", "text/markdown")}>
+              <Button variant="secondary" size="sm" onClick={() => exportReport(report.runId as string, "markdown", "report.md", "text/markdown")}>
                 MD
-              </button>
-              <button type="button" className="rounded-md bg-secondary px-2 py-1.5 text-sm hover:bg-accent" onClick={() => exportReport(report.runId as string, "html", "report.html", "text/html")}>
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => exportReport(report.runId as string, "html", "report.html", "text/html")}>
                 HTML
-              </button>
+              </Button>
             </>
           )}
         </div>
@@ -580,9 +558,13 @@ function StatTable({ title, rows, hasAnalyze }: { title: string; rows: StatGroup
   );
   const maxMs = Math.max(...rows.map((r) => r.selfMs), 0.0001);
   const head = (id: "selfMs" | "count" | "key", label: string, cls = "") => (
-    <button type="button" onClick={() => setSort(id)} className={`hover:text-foreground ${sort === id ? "text-foreground" : ""} ${cls}`}>
+    <Button
+      variant="ghost"
+      onClick={() => setSort(id)}
+      className={`h-auto p-0 text-xs font-medium ${sort === id ? "text-foreground" : "text-muted-foreground"} ${cls}`}
+    >
       {label}
-    </button>
+    </Button>
   );
   return (
     <div className="rounded-lg border p-3 min-w-0" style={{ background: "var(--card)" }}>
@@ -654,10 +636,10 @@ function PlanTree({ node, depth, onSelect, selectedId }: { node: PlanNode; depth
   return (
     <div>
       <div style={{ paddingLeft: `${depth * 16}px` }}>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
           onClick={() => onSelect(node)}
-          className={`text-left hover:bg-accent rounded px-1 -mx-1 ${selectedId === node.id ? "bg-accent ring-1 ring-[var(--sev-info)]" : ""}`}
+          className={`h-auto px-1 -mx-1 justify-start font-normal whitespace-normal text-left ${selectedId === node.id ? "bg-accent ring-1 ring-[var(--sev-info)]" : ""}`}
         >
           <span style={{ color: heat, fontWeight: heat ? 600 : 400 }}>
             {depth > 0 && <CornerDownRight className="inline size-3 mr-1 -translate-y-px text-muted-foreground" />}
@@ -670,7 +652,7 @@ function PlanTree({ node, depth, onSelect, selectedId }: { node: PlanNode; depth
             {m.selfMs != null && `  self ${m.selfMs.toFixed(1)} ms`}
             {m.pctOfTotal != null && m.pctOfTotal >= 1 && ` (${m.pctOfTotal.toFixed(0)}%)`}
           </span>
-        </button>
+        </Button>
       </div>
       {node.children.map((c) => <PlanTree key={c.id} node={c} depth={depth + 1} onSelect={onSelect} selectedId={selectedId} />)}
     </div>
@@ -720,9 +702,7 @@ function LiveLocksPanel({ live, onClose }: { live: LiveLocks; onClose: () => voi
         <span className="text-xs text-muted-foreground">
           {live.sessions.length} client sessions · {live.blocked.length} blocked
         </span>
-        <button type="button" className="ml-auto text-sm rounded-md bg-secondary px-3 py-1" onClick={onClose}>
-          Close
-        </button>
+        <Button variant="secondary" size="sm" className="ml-auto" onClick={onClose}>Close</Button>
       </div>
       {live.blocked.length === 0 ? (
         <div className="text-sm text-muted-foreground rounded-lg border p-4" style={{ background: "var(--card)" }}>
@@ -762,25 +742,23 @@ function SettingsPanel({ settings, onClose }: { settings: Settings; onClose: () 
       <div className="flex items-center gap-2">
         <h2 className="font-medium">Settings</h2>
         <span className="text-xs text-muted-foreground">Advisor thresholds — saved to your data dir and applied to new analyses.</span>
-        <button type="button" className="ml-auto text-sm rounded-md bg-secondary px-3 py-1" onClick={onClose}>Close</button>
+        <Button variant="secondary" size="sm" className="ml-auto" onClick={onClose}>Close</Button>
       </div>
       <div className="grid grid-cols-2 gap-2">
         {Object.entries(thresholds).map(([key, value]) => (
           <label key={key} className="flex items-center gap-2 text-sm">
             <span className="flex-1 text-muted-foreground">{key}</span>
-            <input
+            <Input
               type="number"
               value={value}
               onChange={(e) => setThresholds({ ...thresholds, [key]: Number(e.target.value) })}
-              className="w-28 rounded-md bg-secondary px-2 py-1 text-sm"
+              className="w-28"
             />
           </label>
         ))}
       </div>
       <div className="flex items-center gap-3">
-        <button type="button" onClick={save} className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium">
-          Save
-        </button>
+        <Button onClick={save}>Save</Button>
         {saved && <span className="inline-flex items-center gap-1 text-sm" style={{ color: "var(--sev-info)" }}><Check className="size-4" /> Saved</span>}
         <span className="text-xs text-muted-foreground">Per-rule enable/severity overrides are editable in the config file.</span>
       </div>
@@ -816,7 +794,7 @@ function DiffPanel({ diff, onClose }: { diff: DiffResult; onClose: () => void })
       <div className="flex items-center gap-2">
         <h2 className="font-medium">Diff (before → after)</h2>
         <span className="text-sm" style={{ color: slower ? "var(--sev-error)" : "var(--sev-info)" }}>{headline}</span>
-        <button type="button" className="ml-auto text-sm rounded-md bg-secondary px-3 py-1" onClick={onClose}>Close</button>
+        <Button variant="secondary" size="sm" className="ml-auto" onClick={onClose}>Close</Button>
       </div>
       {rows("Regressed (slower)", diff.regressed, "var(--sev-error)")}
       {rows("Improved (faster)", diff.improved, "var(--sev-info)")}
@@ -878,24 +856,8 @@ function Empty() {
 
 function Tab({ active, onClick, children }: { active: boolean; onClick: () => void; children: ReactNode }) {
   return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`px-3 py-1.5 rounded-md text-sm ${active ? "bg-primary text-primary-foreground" : "bg-secondary text-secondary-foreground hover:bg-accent"}`}
-    >
+    <Button variant={active ? "default" : "secondary"} size="sm" onClick={onClick}>
       {children}
-    </button>
-  );
-}
-
-function Input({ placeholder, value, onChange, type = "text" }: { placeholder: string; value: string; onChange: (v: string) => void; type?: string }) {
-  return (
-    <input
-      type={type}
-      placeholder={placeholder}
-      value={value}
-      onChange={(e) => onChange(e.target.value)}
-      className="rounded-md bg-secondary px-2 py-1.5 text-sm"
-    />
+    </Button>
   );
 }

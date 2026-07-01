@@ -1,3 +1,4 @@
+import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import type { PlanNode } from "../lib/api.ts";
 import { describeNode } from "../lib/nodeDescriptions.ts";
@@ -60,9 +61,9 @@ export function NodeDetail({ node, onClose }: { node: PlanNode; onClose?: () => 
           {desc && <div className="text-xs text-muted-foreground mt-0.5">{desc}</div>}
         </div>
         {onClose && (
-          <button type="button" onClick={onClose} className="ml-auto text-muted-foreground hover:text-foreground" title="Close">
+          <Button variant="ghost" size="icon" onClick={onClose} className="ml-auto h-7 w-7 text-muted-foreground" title="Close">
             <X className="size-4" />
-          </button>
+          </Button>
         )}
       </div>
 
