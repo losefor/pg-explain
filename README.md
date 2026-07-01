@@ -177,6 +177,8 @@ Total execution time: 321.0 ms
 | `pg-explain [FILE]` | **Analyze** a plan from a file, `< stdin`, or every plan in a directory (batch mode). This is the default command. |
 | `pg-explain run` | **Connect** to PostgreSQL, run `EXPLAIN` safely, and analyze the result. Needs the optional `pg` driver. |
 | `pg-explain diff <before> <after>` | **Compare** two plan JSON files and report regressions. Designed as a CI gate. |
+| `pg-explain locks` | Snapshot **live lock contention**: who is blocked and by whom (`pg_blocking_pids`), with a cancel/terminate remediation. `--fail-on-blocked` exits 1 for scripting. Needs the optional `pg` driver. |
+| `pg-explain studio` | Launch the local **web UI** (history, plan graph, diff, live locks). |
 | `pg-explain completion <bash\|zsh\|fish>` | Print a shell **completion** script for the given shell. |
 
 Run `pg-explain --help`, `pg-explain run --help`, or `pg-explain diff --help` for the full flag list.

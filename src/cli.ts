@@ -4,6 +4,7 @@ import { runAnalyze } from "./commands/analyze.ts";
 import { runCompletion } from "./commands/completion.ts";
 import { runDiff } from "./commands/diff.ts";
 import type { EmitOptions } from "./commands/emit.ts";
+import { runLocks } from "./commands/locks.ts";
 import { runRun } from "./commands/run.ts";
 import { runStudio } from "./commands/studio.ts";
 import { loadConfig } from "./config.ts";
@@ -307,6 +308,70 @@ const diffCmd = defineCommand({
   },
 });
 
+// ── locks subcommand ──────────────────────────────────────────────────────────
+
+const locksCmd = defineCommand({
+  meta: {
+    name: "locks",
+    description: "Snapshot live lock contention: who is blocked, and by whom.",
+  },
+  args: {
+    dsn: {
+      type: "string",
+      description: "Connection string (or use --host/--port/… or PG* env vars)",
+    },
+    host: { type: "string", description: "Server host" },
+    port: { type: "string", description: "Server port" },
+    dbname: { type: "string", alias: "d", description: "Database name" },
+    user: { type: "string", alias: "U", description: "Role name" },
+    sslmode: { type: "string", description: "disable | require | verify-ca | verify-full" },
+    sslrootcert: { type: "string", description: "Path to a CA certificate (PEM)" },
+    "connect-timeout": {
+      type: "string",
+      default: "10s",
+      description: "Connection timeout (e.g. 30s)",
+    },
+    format: { type: "string", default: "terminal", alias: "f", description: "terminal | json" },
+    output: { type: "string", alias: "o", description: "Write to a file instead of stdout" },
+    color: { type: "string", default: "auto", description: "auto | always | never" },
+    "no-color": { type: "boolean", description: "Disable color" },
+    "fail-on-blocked": {
+      type: "boolean",
+      description: "Exit 1 if any session is currently blocked",
+    },
+    quiet: { type: "boolean", alias: "q", description: "Suppress non-error logs" },
+    debug: { type: "boolean", description: "Print stack traces on internal errors" },
+  },
+  async run({ args }) {
+    try {
+      applyGlobalFlags(args);
+      if (!["terminal", "json"].includes(args.format as string)) {
+        throw usageError(`Unknown locks --format '${args.format}'`, "Use terminal or json.");
+      }
+      const connection: ConnectionOptions = {
+        connectTimeoutMs: parseDurationMs(args["connect-timeout"]),
+      };
+      if (args.dsn) connection.dsn = args.dsn;
+      if (args.host) connection.host = args.host;
+      if (args.port) connection.port = Number(args.port);
+      if (args.dbname) connection.database = args.dbname;
+      if (args.user) connection.user = args.user;
+      if (args.sslmode) connection.sslmode = args.sslmode;
+      if (args.sslrootcert) connection.sslrootcert = args.sslrootcert;
+
+      process.exitCode = await runLocks({
+        connection,
+        format: args.format as "terminal" | "json",
+        output: args.output,
+        color: (args["no-color"] ? "never" : args.color) as "auto" | "always" | "never",
+        failOnBlocked: !!args["fail-on-blocked"],
+      });
+    } catch (err) {
+      process.exitCode = handleFatal(err);
+    }
+  },
+});
+
 // ── studio subcommand ─────────────────────────────────────────────────────────
 
 const studioCmd = defineCommand({
@@ -397,9 +462,11 @@ if (argv[0] === "completion") {
       ? runMain(runCmd, { rawArgs: argv.slice(1) })
       : argv[0] === "diff"
         ? runMain(diffCmd, { rawArgs: argv.slice(1) })
-        : argv[0] === "studio"
-          ? runMain(studioCmd, { rawArgs: argv.slice(1) })
-          : runMain(main, { rawArgs: argv });
+        : argv[0] === "locks"
+          ? runMain(locksCmd, { rawArgs: argv.slice(1) })
+          : argv[0] === "studio"
+            ? runMain(studioCmd, { rawArgs: argv.slice(1) })
+            : runMain(main, { rawArgs: argv });
 
   started.catch((err) => {
     process.exitCode = handleFatal(err);

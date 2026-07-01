@@ -4,7 +4,7 @@ import { ExitCode } from "../util/exit.ts";
  * Print a shell completion script. Minimal but real: completes the subcommands,
  * formats, and the most-used flags. ponytail: static scripts, no dynamic discovery.
  */
-const SUBCOMMANDS = "run diff completion";
+const SUBCOMMANDS = "run diff locks studio completion";
 const FLAGS =
   "--format --output --tldr --redact --ascii --color --no-color --fail-on --strict --config --statement --quiet --verbose --debug --help --version";
 const FORMATS = "terminal markdown json html text";
