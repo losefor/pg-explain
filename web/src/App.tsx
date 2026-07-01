@@ -1,4 +1,4 @@
-import { Check, CheckCircle2, ChevronDown, ChevronRight, CornerDownRight, ExternalLink, Lock, Minus, Plus, Settings as SettingsIcon } from "lucide-react";
+import { Check, CheckCircle2, ChevronDown, ChevronRight, CornerDownRight, ExternalLink, Lock, Minus, Moon, Plus, Settings as SettingsIcon, Sun } from "lucide-react";
 import type { ReactNode } from "react";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format as formatSqlText } from "sql-formatter";
@@ -42,6 +42,14 @@ const SEV_LABEL: Record<Severity, string> = { error: "Critical", warn: "Warning"
 const isLock = (code: string) => /^PGX_(LOCK|DDL|WRITE|DROP_INDEX|SELECT_FOR|UPDATE_UNINDEXED)/.test(code);
 
 export function App() {
+  // Default: light mode. Persisted in localStorage so the preference survives refresh.
+  const [dark, setDark] = useState(() => localStorage.getItem("theme") === "dark");
+
+  useEffect(() => {
+    document.documentElement.classList.toggle("dark", dark);
+    localStorage.setItem("theme", dark ? "dark" : "light");
+  }, [dark]);
+
   const [mode, setMode] = useState<"run" | "paste">("run");
   const [sql, setSql] = useState("select * from pg_class limit 50");
   const [plan, setPlan] = useState("");
@@ -226,6 +234,14 @@ export function App() {
             className={`text-xs rounded px-2 py-0.5 ${diffMode ? "bg-primary text-primary-foreground" : "bg-secondary"}`}
           >
             Compare
+          </button>
+          <button
+            type="button"
+            title={dark ? "Switch to light mode" : "Switch to dark mode"}
+            onClick={() => setDark((v) => !v)}
+            className="inline-flex items-center rounded px-2 py-1 bg-secondary"
+          >
+            {dark ? <Sun className="size-4" /> : <Moon className="size-4" />}
           </button>
           <button
             type="button"
