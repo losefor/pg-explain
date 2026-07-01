@@ -136,6 +136,27 @@ CREATE INDEX ON events (<predicate columns>) -- columns from the filter above;
 "
 `;
 
+exports[`renderers (snapshot) > cost-only.json → terminal 1`] = `
+"pg-explain report
+Verdict: 1 warning. Cost-only plan (no timing).
+
+Plan tree
+Seq Scan on events  rows≈250,000 est
+
+Findings
+
+[WARNING] Sequential scan on events (250,000 est. rows) PGX_SEQ_SCAN_LARGE
+  What: Postgres read events sequentially, scanning roughly 250,000 rows (estimated — run with ANALYZE for actuals).
+  Why:  A row filter ((created_at > now())) is applied after reading every row, so no index narrowed the scan.
+  Fix:  Add an index covering the WHERE/JOIN predicate on events so Postgres can skip non-matching rows. If the query genuinely needs most of the table, the seq scan is correct — reduce the rows touched instead.
+        - Identify the selective columns in the WHERE/JOIN predicate.
+        - Ensure they are sargable (no function-wrapping or implicit casts on the column).
+        - If selectivity is low, a partial index (WHERE …) may be better.
+        Index the predicate columns: CREATE INDEX ON events (<predicate columns>) -- columns from the filter above;
+        docs: https://www.postgresql.org/docs/current/indexes-intro.html
+"
+`;
+
 exports[`renderers (snapshot) > cost-only.json → text 1`] = `
 "pg-explain report
 Verdict: 1 warning. Cost-only plan (no timing).
@@ -154,6 +175,786 @@ Findings
         - If selectivity is low, a partial index (WHERE …) may be better.
         Index the predicate columns: CREATE INDEX ON events (<predicate columns>) -- columns from the filter above;
         docs: https://www.postgresql.org/docs/current/indexes-intro.html
+"
+`;
+
+exports[`renderers (snapshot) > html output is stable (snapshot) 1`] = `
+"<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pg-explain report</title>
+<style>
+  :root { color-scheme: light dark; }
+  body { font: 15px/1.5 -apple-system, system-ui, sans-serif; margin: 0; padding: 2rem; max-width: 980px; margin-inline: auto; }
+  h1 { font-size: 1.4rem; } h2 { font-size: 1.1rem; margin-top: 2rem; border-bottom: 1px solid #8884; padding-bottom: .3rem; }
+  .verdict { padding: .75rem 1rem; border-left: 4px solid #888; background: #8881; border-radius: 4px; }
+  .verdict.sev-error { border-color: #e5484d; } .verdict.sev-warn { border-color: #f5a623; } .verdict.sev-info { border-color: #4493f8; }
+  table { border-collapse: collapse; width: 100%; } td, th { text-align: left; padding: .3rem .6rem; border-bottom: 1px solid #8883; }
+  .tree { overflow-x: auto; } .node { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre; font-size: 13px; }
+  .glyph { color: #8888; } .meta { color: #888; }
+  .node.hot .label { color: #e5484d; font-weight: 700; } .node.warm .label { color: #f5a623; } .node.cold .label { opacity: .6; }
+  .finding { border: 1px solid #8883; border-radius: 6px; padding: 1rem; margin: 1rem 0; }
+  .finding .tag { font-size: .75rem; font-weight: 700; padding: .1rem .5rem; border-radius: 3px; color: #fff; }
+  .sev-error .tag { background: #e5484d; } .sev-warn .tag { background: #f5a623; } .sev-info .tag { background: #4493f8; }
+  .finding code, pre { font-family: ui-monospace, monospace; font-size: 13px; }
+  pre { background: #8881; padding: .6rem .8rem; border-radius: 4px; overflow-x: auto; }
+  .label-cmd { color: #888; font-size: .85rem; margin-top: .5rem; }
+  .ok { color: #2e7d32; }
+</style>
+</head>
+<body>
+<h1>pg-explain report</h1>
+<div class="verdict sev-warn">2 warnings, 2 notes — top cost: Seq Scan on orders (78% of time). Total 321.0 ms.</div>
+
+<h2>Summary</h2>
+<table>
+  <tr><th>Planning time</th><td>0.420 ms</td></tr>
+  <tr><th>Execution time</th><td>321.0 ms</td></tr>
+  
+  <tr><th>Findings</th><td>4</td></tr>
+</table>
+
+<h2>Plan tree</h2>
+<div class="tree">
+<div class="node warm"><span class="glyph"></span><span class="label">Aggregate</span> <span class="meta">rows=1 · self 70.5 ms (22%) · cache 2%</span></div>
+<div class="node hot"><span class="glyph">└─ </span><span class="label">Seq Scan on orders</span> <span class="meta">rows=500,000 (est 1,000, 500× under) · self 250.0 ms (78%) · cache 2%</span></div>
+</div>
+
+<h2>Findings</h2>
+<div class="finding sev-warn">
+  <p><span class="tag">Warning</span> <strong>Sequential scan on orders (500,000 rows)</strong> <code>PGX_SEQ_SCAN_LARGE</code> <span class="meta">on orders</span></p>
+  <p><strong>What:</strong> Postgres read orders sequentially, scanning roughly 500,000 rows.</p>
+  <p><strong>Why:</strong> A row filter ((status = 'shipped'::text)) is applied after reading every row, so no index narrowed the scan.</p>
+  <p><strong>Fix:</strong> Add an index covering the WHERE/JOIN predicate on orders so Postgres can skip non-matching rows. If the query genuinely needs most of the table, the seq scan is correct — reduce the rows touched instead.</p>
+  <ul><li>Identify the selective columns in the WHERE/JOIN predicate.</li><li>Ensure they are sargable (no function-wrapping or implicit casts on the column).</li><li>If selectivity is low, a partial index (WHERE …) may be better.</li></ul>
+  <div class="label-cmd">Index the predicate columns</div><pre><code>CREATE INDEX ON orders (&lt;predicate columns&gt;) -- columns from the filter above;</code></pre>
+  <p>📖 <a href="https://www.postgresql.org/docs/current/indexes-intro.html">PostgreSQL docs</a></p>
+</div>
+<div class="finding sev-warn">
+  <p><span class="tag">Warning</span> <strong>500x row underestimate on orders</strong> <code>PGX_ROW_MISESTIMATE</code> <span class="meta">on orders</span></p>
+  <p><strong>What:</strong> Postgres estimated 1,000 rows but 500,000 were produced — a 500x underestimate on orders.</p>
+  <p><strong>Why:</strong> The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).</p>
+  <p><strong>Fix:</strong> Refresh and sharpen statistics for orders: run ANALYZE orders, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly. Underestimates feeding a nested loop or hash join are the highest priority — fix these first.</p>
+  <ul><li>Refresh table statistics first; this alone often fixes the estimate.</li><li>If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.</li><li>If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence.</li></ul>
+  <div class="label-cmd">Refresh statistics</div><pre><code>ANALYZE orders;</code></pre><div class="label-cmd">Raise per-column statistics target</div><pre><code>ALTER TABLE orders ALTER COLUMN &lt;column&gt; SET STATISTICS 1000;
+ANALYZE orders;</code></pre><div class="label-cmd">Add extended statistics for correlated columns</div><pre><code>CREATE STATISTICS &lt;stats_name&gt; (dependencies, ndistinct) ON &lt;col_a&gt;, &lt;col_b&gt; FROM orders;
+ANALYZE orders;</code></pre>
+  <p>📖 <a href="https://www.postgresql.org/docs/current/planner-stats.html">PostgreSQL docs</a></p>
+</div>
+<div class="finding sev-info">
+  <p><span class="tag">Note</span> <strong>Low cache hit ratio at Aggregate (2.3%)</strong> <code>PGX_LOW_CACHE_HIT</code></p>
+  <p><strong>What:</strong> Aggregate served only 2.3% of its shared-buffer accesses from cache, reading 5,000 blk (39.1 MiB) from disk.</p>
+  <p><strong>Why:</strong> The pages this node needed were not resident in shared_buffers, so PostgreSQL had to read them from disk. On a first run this is an expected cold cache; if it persists, the working set is larger than the cache or the scan touches more pages than necessary.</p>
+  <p><strong>Fix:</strong> Re-run the query to check whether this is just a cold cache — the ratio should climb on a warm run. If it stays low, the working set exceeds shared_buffers: size shared_buffers/effective_cache_size to your RAM, or add a selective index on the scanned relation so far fewer pages are read.</p>
+  <ul><li>Run the same EXPLAIN (ANALYZE, BUFFERS) a second time; a much higher hit ratio means the first run was a cold cache and no action is needed.</li><li>If the ratio stays low, check whether shared_buffers (and effective_cache_size for planner costing) are sized to the machine's RAM.</li><li>If the node reads far more pages than the rows it returns, add a selective index so only matching pages are fetched.</li></ul>
+  <div class="label-cmd">Inspect current buffer-cache sizing</div><pre><code>SHOW shared_buffers; SHOW effective_cache_size;</code></pre><div class="label-cmd">Reduce pages read with a selective index</div><pre><code>CREATE INDEX ON &lt;table&gt; (&lt;predicate columns&gt;);</code></pre>
+  <p>📖 <a href="https://www.postgresql.org/docs/current/runtime-config-resource.html#GUC-SHARED-BUFFERS">PostgreSQL docs</a></p>
+</div>
+<div class="finding sev-info">
+  <p><span class="tag">Note</span> <strong>Low cache hit ratio at Seq Scan on orders (2.3%)</strong> <code>PGX_LOW_CACHE_HIT</code> <span class="meta">on orders</span></p>
+  <p><strong>What:</strong> Seq Scan on orders served only 2.3% of its shared-buffer accesses from cache, reading 5,000 blk (39.1 MiB) from disk.</p>
+  <p><strong>Why:</strong> The pages this node needed were not resident in shared_buffers, so PostgreSQL had to read them from disk. On a first run this is an expected cold cache; if it persists, the working set is larger than the cache or the scan touches more pages than necessary.</p>
+  <p><strong>Fix:</strong> Re-run the query to check whether this is just a cold cache — the ratio should climb on a warm run. If it stays low, the working set exceeds shared_buffers: size shared_buffers/effective_cache_size to your RAM, or add a selective index on orders so far fewer pages are read.</p>
+  <ul><li>Run the same EXPLAIN (ANALYZE, BUFFERS) a second time; a much higher hit ratio means the first run was a cold cache and no action is needed.</li><li>If the ratio stays low, check whether shared_buffers (and effective_cache_size for planner costing) are sized to the machine's RAM.</li><li>If the node reads far more pages than the rows it returns, add a selective index so only matching pages are fetched.</li></ul>
+  <div class="label-cmd">Inspect current buffer-cache sizing</div><pre><code>SHOW shared_buffers; SHOW effective_cache_size;</code></pre><div class="label-cmd">Reduce pages read with a selective index</div><pre><code>CREATE INDEX ON orders (&lt;predicate columns&gt;);</code></pre>
+  <p>📖 <a href="https://www.postgresql.org/docs/current/runtime-config-resource.html#GUC-SHARED-BUFFERS">PostgreSQL docs</a></p>
+</div>
+</body>
+</html>
+"
+`;
+
+exports[`renderers (snapshot) > nested-loop-large-outer.json → json 1`] = `
+"{
+  "schemaVersion": 1,
+  "verdict": "4 warnings — top cost: Index Scan using users_pkey on users (u) (94% of time). Total 4.25 s.",
+  "worstSeverity": "warn",
+  "summary": {
+    "planningTimeMs": 0.55,
+    "executionTimeMs": 4250,
+    "serializationTimeMs": null,
+    "hasAnalyze": true,
+    "hasBuffers": false,
+    "nodeCount": 3,
+    "findings": {
+      "error": 0,
+      "warn": 4,
+      "info": 0
+    }
+  },
+  "triggers": [],
+  "jit": null,
+  "settings": null,
+  "diagnostics": [
+    {
+      "code": "PGX_NESTED_LOOP_LARGE_OUTER",
+      "domain": "plan",
+      "severity": "warn",
+      "title": "Nested loop driven by 50,000 outer rows (Seq Scan on events (e))",
+      "detail": "The nested loop's outer side (Seq Scan on events (e)) produced 50,000 rows, so its inner side (Index Scan using users_pkey on users (u)) is re-executed roughly that many times.",
+      "cause": "The planner expected far fewer outer rows than the 50,000 that actually came back, so it chose a per-row nested loop where a single hash/merge join would have been cheaper.",
+      "remediation": {
+        "summary": "Fix the outer-side row estimate first — re-ANALYZE events, raise its column statistics, or add extended statistics — so the planner switches to a hash or merge join. If the estimate is already accurate, add an index on the inner join key ((u.id = e.user_id)) so each of the 50,000 probes is cheap.",
+        "steps": [
+          "Compare the outer node's estimated vs actual rows: a large gap means the estimate is the real problem.",
+          "Refresh statistics so the planner sees the true cardinality and can prefer a hash/merge join.",
+          "If columns are correlated, create extended (multivariate) statistics on them.",
+          "If estimates are already correct, index the inner join key so each probe is an index lookup, not a scan.",
+          "As a last resort to confirm the diagnosis, test with \`SET enable_nestloop = off\` for this query only."
+        ],
+        "commands": [
+          {
+            "label": "Refresh planner statistics on the driving table",
+            "sql": "ANALYZE events;"
+          },
+          {
+            "label": "Increase statistics target on the misestimated column, then re-ANALYZE",
+            "sql": "ALTER TABLE events ALTER COLUMN <column> SET STATISTICS 1000;\\nANALYZE events;"
+          },
+          {
+            "label": "Add extended statistics for correlated columns",
+            "sql": "CREATE STATISTICS events_stats (dependencies, ndistinct) ON <col_a>, <col_b> FROM events;\\nANALYZE events;"
+          },
+          {
+            "label": "If estimates are correct, index the inner join key",
+            "sql": "CREATE INDEX ON users (<inner join column>);"
+          },
+          {
+            "label": "Confirm the diagnosis by disabling nested loops for this query only",
+            "sql": "SET enable_nestloop = off;"
+          }
+        ]
+      },
+      "location": {
+        "kind": "node",
+        "nodeId": 0,
+        "nodeType": "Nested Loop"
+      },
+      "docsUrl": "https://www.postgresql.org/docs/current/runtime-config-query.html",
+      "meta": {
+        "outerRows": 50000
+      }
+    },
+    {
+      "code": "PGX_ROW_MISESTIMATE",
+      "domain": "plan",
+      "severity": "warn",
+      "title": "960x row underestimate",
+      "detail": "Postgres estimated 50 rows but 48,000 were produced — a 960x underestimate.",
+      "cause": "The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).",
+      "remediation": {
+        "summary": "Refresh and sharpen statistics for the underlying table: run ANALYZE <relation>, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly. Underestimates feeding a nested loop or hash join are the highest priority — fix these first.",
+        "steps": [
+          "Refresh table statistics first; this alone often fixes the estimate.",
+          "If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.",
+          "If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence."
+        ],
+        "commands": [
+          {
+            "label": "Refresh statistics",
+            "sql": "ANALYZE <relation>;"
+          },
+          {
+            "label": "Raise per-column statistics target",
+            "sql": "ALTER TABLE <relation> ALTER COLUMN <column> SET STATISTICS 1000;\\nANALYZE <relation>;"
+          },
+          {
+            "label": "Add extended statistics for correlated columns",
+            "sql": "CREATE STATISTICS <stats_name> (dependencies, ndistinct) ON <col_a>, <col_b> FROM <relation>;\\nANALYZE <relation>;"
+          }
+        ]
+      },
+      "location": {
+        "kind": "node",
+        "nodeId": 0,
+        "nodeType": "Nested Loop"
+      },
+      "docsUrl": "https://www.postgresql.org/docs/current/planner-stats.html",
+      "meta": {
+        "estimatedRows": 50,
+        "actualRows": 48000,
+        "factor": 960,
+        "direction": "under"
+      }
+    },
+    {
+      "code": "PGX_ROW_MISESTIMATE",
+      "domain": "plan",
+      "severity": "warn",
+      "title": "1,000x row underestimate on events",
+      "detail": "Postgres estimated 50 rows but 50,000 were produced — a 1,000x underestimate on events.",
+      "cause": "The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).",
+      "remediation": {
+        "summary": "Refresh and sharpen statistics for events: run ANALYZE events, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly. Underestimates feeding a nested loop or hash join are the highest priority — fix these first.",
+        "steps": [
+          "Refresh table statistics first; this alone often fixes the estimate.",
+          "If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.",
+          "If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence."
+        ],
+        "commands": [
+          {
+            "label": "Refresh statistics",
+            "sql": "ANALYZE events;"
+          },
+          {
+            "label": "Raise per-column statistics target",
+            "sql": "ALTER TABLE events ALTER COLUMN <column> SET STATISTICS 1000;\\nANALYZE events;"
+          },
+          {
+            "label": "Add extended statistics for correlated columns",
+            "sql": "CREATE STATISTICS <stats_name> (dependencies, ndistinct) ON <col_a>, <col_b> FROM events;\\nANALYZE events;"
+          }
+        ]
+      },
+      "location": {
+        "kind": "node",
+        "nodeId": 1,
+        "nodeType": "Seq Scan",
+        "relation": "events"
+      },
+      "docsUrl": "https://www.postgresql.org/docs/current/planner-stats.html",
+      "meta": {
+        "estimatedRows": 50,
+        "actualRows": 50000,
+        "factor": 1000,
+        "direction": "under"
+      }
+    },
+    {
+      "code": "PGX_ROW_MISESTIMATE",
+      "domain": "plan",
+      "severity": "warn",
+      "title": "50,000x row underestimate on users",
+      "detail": "Postgres estimated 1 rows but 50,000 were produced — a 50,000x underestimate on users.",
+      "cause": "The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).",
+      "remediation": {
+        "summary": "Refresh and sharpen statistics for users: run ANALYZE users, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly. Underestimates feeding a nested loop or hash join are the highest priority — fix these first.",
+        "steps": [
+          "Refresh table statistics first; this alone often fixes the estimate.",
+          "If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.",
+          "If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence."
+        ],
+        "commands": [
+          {
+            "label": "Refresh statistics",
+            "sql": "ANALYZE users;"
+          },
+          {
+            "label": "Raise per-column statistics target",
+            "sql": "ALTER TABLE users ALTER COLUMN <column> SET STATISTICS 1000;\\nANALYZE users;"
+          },
+          {
+            "label": "Add extended statistics for correlated columns",
+            "sql": "CREATE STATISTICS <stats_name> (dependencies, ndistinct) ON <col_a>, <col_b> FROM users;\\nANALYZE users;"
+          }
+        ]
+      },
+      "location": {
+        "kind": "node",
+        "nodeId": 2,
+        "nodeType": "Index Scan",
+        "relation": "users"
+      },
+      "docsUrl": "https://www.postgresql.org/docs/current/planner-stats.html",
+      "meta": {
+        "estimatedRows": 1,
+        "actualRows": 50000,
+        "factor": 50000,
+        "direction": "under"
+      }
+    }
+  ],
+  "bottlenecks": [
+    {
+      "id": 2,
+      "label": "Index Scan using users_pkey on users (u)",
+      "nodeType": "Index Scan",
+      "relation": "users",
+      "selfMs": 4000,
+      "pctOfTotal": 94.11764705882354,
+      "totalRows": 50000
+    },
+    {
+      "id": 0,
+      "label": "Nested Loop",
+      "nodeType": "Nested Loop",
+      "relation": null,
+      "selfMs": 105,
+      "pctOfTotal": 2.4705882352941178,
+      "totalRows": 48000
+    },
+    {
+      "id": 1,
+      "label": "Seq Scan on events (e)",
+      "nodeType": "Seq Scan",
+      "relation": "events",
+      "selfMs": 95,
+      "pctOfTotal": 2.235294117647059,
+      "totalRows": 50000
+    }
+  ],
+  "stats": {
+    "byNodeType": [
+      {
+        "key": "Index Scan",
+        "count": 1,
+        "selfMs": 4000,
+        "pctOfTotal": 94.11764705882354
+      },
+      {
+        "key": "Nested Loop",
+        "count": 1,
+        "selfMs": 105,
+        "pctOfTotal": 2.4705882352941178
+      },
+      {
+        "key": "Seq Scan",
+        "count": 1,
+        "selfMs": 95,
+        "pctOfTotal": 2.235294117647059
+      }
+    ],
+    "byRelation": [
+      {
+        "key": "users",
+        "count": 1,
+        "selfMs": 4000,
+        "pctOfTotal": 94.11764705882354
+      },
+      {
+        "key": "events",
+        "count": 1,
+        "selfMs": 95,
+        "pctOfTotal": 2.235294117647059
+      }
+    ],
+    "byIndex": [
+      {
+        "key": "users_pkey",
+        "count": 1,
+        "selfMs": 4000,
+        "pctOfTotal": 94.11764705882354
+      }
+    ]
+  },
+  "plan": {
+    "id": 0,
+    "nodeType": "Nested Loop",
+    "planRows": 50,
+    "planWidth": 24,
+    "startupCost": 0.42,
+    "totalCost": 75000,
+    "actualRows": 48000,
+    "actualLoops": 1,
+    "actualStartupTime": 0.08,
+    "actualTotalTime": 4200,
+    "joinType": "Inner",
+    "metrics": {
+      "totalRows": 48000,
+      "inclusiveMs": 4200,
+      "estimateFactor": 960,
+      "estimateDirection": "under",
+      "cacheHitRatio": null,
+      "selfMs": 105,
+      "pctOfTotal": 2.4705882352941178
+    },
+    "children": [
+      {
+        "id": 1,
+        "nodeType": "Seq Scan",
+        "planRows": 50,
+        "parentRelationship": "Outer",
+        "relationName": "events",
+        "alias": "e",
+        "planWidth": 16,
+        "startupCost": 0,
+        "totalCost": 1800,
+        "actualRows": 50000,
+        "actualLoops": 1,
+        "actualStartupTime": 0.02,
+        "actualTotalTime": 95,
+        "filter": "(kind = 'click'::text)",
+        "rowsRemovedByFilter": 2000,
+        "metrics": {
+          "totalRows": 50000,
+          "inclusiveMs": 95,
+          "estimateFactor": 1000,
+          "estimateDirection": "under",
+          "cacheHitRatio": null,
+          "filterDiscardRatio": 0.038461538461538464,
+          "selfMs": 95,
+          "pctOfTotal": 2.235294117647059
+        },
+        "children": []
+      },
+      {
+        "id": 2,
+        "nodeType": "Index Scan",
+        "planRows": 1,
+        "parentRelationship": "Inner",
+        "relationName": "users",
+        "alias": "u",
+        "indexName": "users_pkey",
+        "planWidth": 8,
+        "startupCost": 0.42,
+        "totalCost": 1.46,
+        "actualRows": 1,
+        "actualLoops": 50000,
+        "actualStartupTime": 0.07,
+        "actualTotalTime": 0.08,
+        "indexCond": "(u.id = e.user_id)",
+        "metrics": {
+          "totalRows": 50000,
+          "inclusiveMs": 4000,
+          "estimateFactor": 50000,
+          "estimateDirection": "under",
+          "cacheHitRatio": null,
+          "selfMs": 4000,
+          "pctOfTotal": 94.11764705882354
+        },
+        "children": []
+      }
+    ]
+  }
+}"
+`;
+
+exports[`renderers (snapshot) > nested-loop-large-outer.json → markdown 1`] = `
+"# pg-explain report
+
+> **Verdict:** 4 warnings — top cost: Index Scan using users_pkey on users (u) (94% of time). Total 4.25 s.
+
+## Summary
+
+| Metric | Value |
+| --- | --- |
+| Planning time | 0.550 ms |
+| Execution time | 4.25 s |
+| Findings | 0 critical, 4 warning(s), 0 note(s) |
+
+## Plan tree
+
+\`\`\`
+Nested Loop  —  rows=48,000 (est 50, 960× under) · self 105.0 ms (2%)
+├─ Seq Scan on events (e)  —  rows=50,000 (est 50, 1000× under) · self 95.0 ms (2%)
+└─ Index Scan using users_pkey on users (u)  —  rows=50,000 (est 1, 50000× under) · self 4.00 s (94%)
+\`\`\`
+
+## Bottlenecks (by self time)
+
+| # | Node | Self time | % of total | Rows |
+| --- | --- | --- | --- | --- |
+| 1 | Index Scan using users_pkey on users (u) | 4.00 s | 94.1% | 50,000 |
+| 2 | Nested Loop | 105.0 ms | 2.5% | 48,000 |
+| 3 | Seq Scan on events (e) | 95.0 ms | 2.2% | 50,000 |
+
+## Findings
+
+### 🟠 Warning — Nested loop driven by 50,000 outer rows (Seq Scan on events (e))
+
+\`PGX_NESTED_LOOP_LARGE_OUTER\`
+
+**What:** The nested loop's outer side (Seq Scan on events (e)) produced 50,000 rows, so its inner side (Index Scan using users_pkey on users (u)) is re-executed roughly that many times.
+
+**Why:** The planner expected far fewer outer rows than the 50,000 that actually came back, so it chose a per-row nested loop where a single hash/merge join would have been cheaper.
+
+**Fix:** Fix the outer-side row estimate first — re-ANALYZE events, raise its column statistics, or add extended statistics — so the planner switches to a hash or merge join. If the estimate is already accurate, add an index on the inner join key ((u.id = e.user_id)) so each of the 50,000 probes is cheap.
+
+- Compare the outer node's estimated vs actual rows: a large gap means the estimate is the real problem.
+- Refresh statistics so the planner sees the true cardinality and can prefer a hash/merge join.
+- If columns are correlated, create extended (multivariate) statistics on them.
+- If estimates are already correct, index the inner join key so each probe is an index lookup, not a scan.
+- As a last resort to confirm the diagnosis, test with \`SET enable_nestloop = off\` for this query only.
+
+_Refresh planner statistics on the driving table:_
+\`\`\`sql
+ANALYZE events;
+\`\`\`
+
+_Increase statistics target on the misestimated column, then re-ANALYZE:_
+\`\`\`sql
+ALTER TABLE events ALTER COLUMN <column> SET STATISTICS 1000;
+ANALYZE events;
+\`\`\`
+
+_Add extended statistics for correlated columns:_
+\`\`\`sql
+CREATE STATISTICS events_stats (dependencies, ndistinct) ON <col_a>, <col_b> FROM events;
+ANALYZE events;
+\`\`\`
+
+_If estimates are correct, index the inner join key:_
+\`\`\`sql
+CREATE INDEX ON users (<inner join column>);
+\`\`\`
+
+_Confirm the diagnosis by disabling nested loops for this query only:_
+\`\`\`sql
+SET enable_nestloop = off;
+\`\`\`
+
+📖 [PostgreSQL docs](https://www.postgresql.org/docs/current/runtime-config-query.html)
+
+### 🟠 Warning — 960x row underestimate
+
+\`PGX_ROW_MISESTIMATE\`
+
+**What:** Postgres estimated 50 rows but 48,000 were produced — a 960x underestimate.
+
+**Why:** The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).
+
+**Fix:** Refresh and sharpen statistics for the underlying table: run ANALYZE <relation>, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly. Underestimates feeding a nested loop or hash join are the highest priority — fix these first.
+
+- Refresh table statistics first; this alone often fixes the estimate.
+- If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.
+- If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence.
+
+_Refresh statistics:_
+\`\`\`sql
+ANALYZE <relation>;
+\`\`\`
+
+_Raise per-column statistics target:_
+\`\`\`sql
+ALTER TABLE <relation> ALTER COLUMN <column> SET STATISTICS 1000;
+ANALYZE <relation>;
+\`\`\`
+
+_Add extended statistics for correlated columns:_
+\`\`\`sql
+CREATE STATISTICS <stats_name> (dependencies, ndistinct) ON <col_a>, <col_b> FROM <relation>;
+ANALYZE <relation>;
+\`\`\`
+
+📖 [PostgreSQL docs](https://www.postgresql.org/docs/current/planner-stats.html)
+
+### 🟠 Warning — 1,000x row underestimate on events
+
+\`PGX_ROW_MISESTIMATE\`
+
+**What:** Postgres estimated 50 rows but 50,000 were produced — a 1,000x underestimate on events.
+
+**Why:** The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).
+
+**Fix:** Refresh and sharpen statistics for events: run ANALYZE events, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly. Underestimates feeding a nested loop or hash join are the highest priority — fix these first.
+
+- Refresh table statistics first; this alone often fixes the estimate.
+- If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.
+- If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence.
+
+_Refresh statistics:_
+\`\`\`sql
+ANALYZE events;
+\`\`\`
+
+_Raise per-column statistics target:_
+\`\`\`sql
+ALTER TABLE events ALTER COLUMN <column> SET STATISTICS 1000;
+ANALYZE events;
+\`\`\`
+
+_Add extended statistics for correlated columns:_
+\`\`\`sql
+CREATE STATISTICS <stats_name> (dependencies, ndistinct) ON <col_a>, <col_b> FROM events;
+ANALYZE events;
+\`\`\`
+
+📖 [PostgreSQL docs](https://www.postgresql.org/docs/current/planner-stats.html)
+
+### 🟠 Warning — 50,000x row underestimate on users
+
+\`PGX_ROW_MISESTIMATE\`
+
+**What:** Postgres estimated 1 rows but 50,000 were produced — a 50,000x underestimate on users.
+
+**Why:** The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).
+
+**Fix:** Refresh and sharpen statistics for users: run ANALYZE users, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly. Underestimates feeding a nested loop or hash join are the highest priority — fix these first.
+
+- Refresh table statistics first; this alone often fixes the estimate.
+- If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.
+- If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence.
+
+_Refresh statistics:_
+\`\`\`sql
+ANALYZE users;
+\`\`\`
+
+_Raise per-column statistics target:_
+\`\`\`sql
+ALTER TABLE users ALTER COLUMN <column> SET STATISTICS 1000;
+ANALYZE users;
+\`\`\`
+
+_Add extended statistics for correlated columns:_
+\`\`\`sql
+CREATE STATISTICS <stats_name> (dependencies, ndistinct) ON <col_a>, <col_b> FROM users;
+ANALYZE users;
+\`\`\`
+
+📖 [PostgreSQL docs](https://www.postgresql.org/docs/current/planner-stats.html)
+"
+`;
+
+exports[`renderers (snapshot) > nested-loop-large-outer.json → terminal 1`] = `
+"pg-explain report
+Verdict: 4 warnings — top cost: Index Scan using users_pkey on users (u) (94% of time). Total 4.25 s.
+
+Plan tree
+Nested Loop ▁▁▁▁▁▁▁▁  rows=48,000 (est 50, 960× under) · self 105.0 ms (2%)
+├─ Seq Scan on events (e) ▁▁▁▁▁▁▁▁  rows=50,000 (est 50, 1000× under) · self 95.0 ms (2%)
+└─ Index Scan using users_pkey on users (u) ▇▇▇▇▇▇▇▇  rows=50,000 (est 1, 50000× under) · self 4.00 s (94%)
+
+Bottlenecks (by self time)
+  1. Index Scan using users_pkey on users (u) — 4.00 s (94%)
+  2. Nested Loop — 105.0 ms (2%)
+  3. Seq Scan on events (e) — 95.0 ms (2%)
+
+Findings
+
+[WARNING] Nested loop driven by 50,000 outer rows (Seq Scan on events (e)) PGX_NESTED_LOOP_LARGE_OUTER
+  What: The nested loop's outer side (Seq Scan on events (e)) produced 50,000 rows, so its inner side (Index Scan using users_pkey on users (u)) is re-executed roughly that many times.
+  Why:  The planner expected far fewer outer rows than the 50,000 that actually came back, so it chose a per-row nested loop where a single hash/merge join would have been cheaper.
+  Fix:  Fix the outer-side row estimate first — re-ANALYZE events, raise its column statistics, or add extended statistics — so the planner switches to a hash or merge join. If the estimate is already accurate, add an index on the inner join key ((u.id = e.user_id)) so each of the 50,000 probes is cheap.
+        - Compare the outer node's estimated vs actual rows: a large gap means the estimate is the real problem.
+        - Refresh statistics so the planner sees the true cardinality and can prefer a hash/merge join.
+        - If columns are correlated, create extended (multivariate) statistics on them.
+        - If estimates are already correct, index the inner join key so each probe is an index lookup, not a scan.
+        - As a last resort to confirm the diagnosis, test with \`SET enable_nestloop = off\` for this query only.
+        Refresh planner statistics on the driving table: ANALYZE events;
+        Increase statistics target on the misestimated column, then re-ANALYZE: ALTER TABLE events ALTER COLUMN <column> SET STATISTICS 1000;
+ANALYZE events;
+        Add extended statistics for correlated columns: CREATE STATISTICS events_stats (dependencies, ndistinct) ON <col_a>, <col_b> FROM events;
+ANALYZE events;
+        If estimates are correct, index the inner join key: CREATE INDEX ON users (<inner join column>);
+        Confirm the diagnosis by disabling nested loops for this query only: SET enable_nestloop = off;
+        docs: https://www.postgresql.org/docs/current/runtime-config-query.html
+
+[WARNING] 960x row underestimate PGX_ROW_MISESTIMATE
+  What: Postgres estimated 50 rows but 48,000 were produced — a 960x underestimate.
+  Why:  The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).
+  Fix:  Refresh and sharpen statistics for the underlying table: run ANALYZE <relation>, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly. Underestimates feeding a nested loop or hash join are the highest priority — fix these first.
+        - Refresh table statistics first; this alone often fixes the estimate.
+        - If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.
+        - If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence.
+        Refresh statistics: ANALYZE <relation>;
+        Raise per-column statistics target: ALTER TABLE <relation> ALTER COLUMN <column> SET STATISTICS 1000;
+ANALYZE <relation>;
+        Add extended statistics for correlated columns: CREATE STATISTICS <stats_name> (dependencies, ndistinct) ON <col_a>, <col_b> FROM <relation>;
+ANALYZE <relation>;
+        docs: https://www.postgresql.org/docs/current/planner-stats.html
+
+[WARNING] 1,000x row underestimate on events PGX_ROW_MISESTIMATE
+  What: Postgres estimated 50 rows but 50,000 were produced — a 1,000x underestimate on events.
+  Why:  The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).
+  Fix:  Refresh and sharpen statistics for events: run ANALYZE events, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly. Underestimates feeding a nested loop or hash join are the highest priority — fix these first.
+        - Refresh table statistics first; this alone often fixes the estimate.
+        - If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.
+        - If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence.
+        Refresh statistics: ANALYZE events;
+        Raise per-column statistics target: ALTER TABLE events ALTER COLUMN <column> SET STATISTICS 1000;
+ANALYZE events;
+        Add extended statistics for correlated columns: CREATE STATISTICS <stats_name> (dependencies, ndistinct) ON <col_a>, <col_b> FROM events;
+ANALYZE events;
+        docs: https://www.postgresql.org/docs/current/planner-stats.html
+
+[WARNING] 50,000x row underestimate on users PGX_ROW_MISESTIMATE
+  What: Postgres estimated 1 rows but 50,000 were produced — a 50,000x underestimate on users.
+  Why:  The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).
+  Fix:  Refresh and sharpen statistics for users: run ANALYZE users, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly. Underestimates feeding a nested loop or hash join are the highest priority — fix these first.
+        - Refresh table statistics first; this alone often fixes the estimate.
+        - If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.
+        - If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence.
+        Refresh statistics: ANALYZE users;
+        Raise per-column statistics target: ALTER TABLE users ALTER COLUMN <column> SET STATISTICS 1000;
+ANALYZE users;
+        Add extended statistics for correlated columns: CREATE STATISTICS <stats_name> (dependencies, ndistinct) ON <col_a>, <col_b> FROM users;
+ANALYZE users;
+        docs: https://www.postgresql.org/docs/current/planner-stats.html
+
+Total execution time: 4.25 s
+"
+`;
+
+exports[`renderers (snapshot) > nested-loop-large-outer.json → text 1`] = `
+"pg-explain report
+Verdict: 4 warnings — top cost: Index Scan using users_pkey on users (u) (94% of time). Total 4.25 s.
+
+Plan tree
+Nested Loop  rows=48,000 (est 50, 960× under) · self 105.0 ms (2%)
++- Seq Scan on events (e)  rows=50,000 (est 50, 1000× under) · self 95.0 ms (2%)
+\`- Index Scan using users_pkey on users (u)  rows=50,000 (est 1, 50000× under) · self 4.00 s (94%)
+
+Bottlenecks (by self time)
+  1. Index Scan using users_pkey on users (u) — 4.00 s (94%)
+  2. Nested Loop — 105.0 ms (2%)
+  3. Seq Scan on events (e) — 95.0 ms (2%)
+
+Findings
+
+[WARNING] Nested loop driven by 50,000 outer rows (Seq Scan on events (e)) PGX_NESTED_LOOP_LARGE_OUTER
+  What: The nested loop's outer side (Seq Scan on events (e)) produced 50,000 rows, so its inner side (Index Scan using users_pkey on users (u)) is re-executed roughly that many times.
+  Why:  The planner expected far fewer outer rows than the 50,000 that actually came back, so it chose a per-row nested loop where a single hash/merge join would have been cheaper.
+  Fix:  Fix the outer-side row estimate first — re-ANALYZE events, raise its column statistics, or add extended statistics — so the planner switches to a hash or merge join. If the estimate is already accurate, add an index on the inner join key ((u.id = e.user_id)) so each of the 50,000 probes is cheap.
+        - Compare the outer node's estimated vs actual rows: a large gap means the estimate is the real problem.
+        - Refresh statistics so the planner sees the true cardinality and can prefer a hash/merge join.
+        - If columns are correlated, create extended (multivariate) statistics on them.
+        - If estimates are already correct, index the inner join key so each probe is an index lookup, not a scan.
+        - As a last resort to confirm the diagnosis, test with \`SET enable_nestloop = off\` for this query only.
+        Refresh planner statistics on the driving table: ANALYZE events;
+        Increase statistics target on the misestimated column, then re-ANALYZE: ALTER TABLE events ALTER COLUMN <column> SET STATISTICS 1000;
+ANALYZE events;
+        Add extended statistics for correlated columns: CREATE STATISTICS events_stats (dependencies, ndistinct) ON <col_a>, <col_b> FROM events;
+ANALYZE events;
+        If estimates are correct, index the inner join key: CREATE INDEX ON users (<inner join column>);
+        Confirm the diagnosis by disabling nested loops for this query only: SET enable_nestloop = off;
+        docs: https://www.postgresql.org/docs/current/runtime-config-query.html
+
+[WARNING] 960x row underestimate PGX_ROW_MISESTIMATE
+  What: Postgres estimated 50 rows but 48,000 were produced — a 960x underestimate.
+  Why:  The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).
+  Fix:  Refresh and sharpen statistics for the underlying table: run ANALYZE <relation>, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly. Underestimates feeding a nested loop or hash join are the highest priority — fix these first.
+        - Refresh table statistics first; this alone often fixes the estimate.
+        - If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.
+        - If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence.
+        Refresh statistics: ANALYZE <relation>;
+        Raise per-column statistics target: ALTER TABLE <relation> ALTER COLUMN <column> SET STATISTICS 1000;
+ANALYZE <relation>;
+        Add extended statistics for correlated columns: CREATE STATISTICS <stats_name> (dependencies, ndistinct) ON <col_a>, <col_b> FROM <relation>;
+ANALYZE <relation>;
+        docs: https://www.postgresql.org/docs/current/planner-stats.html
+
+[WARNING] 1,000x row underestimate on events PGX_ROW_MISESTIMATE
+  What: Postgres estimated 50 rows but 50,000 were produced — a 1,000x underestimate on events.
+  Why:  The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).
+  Fix:  Refresh and sharpen statistics for events: run ANALYZE events, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly. Underestimates feeding a nested loop or hash join are the highest priority — fix these first.
+        - Refresh table statistics first; this alone often fixes the estimate.
+        - If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.
+        - If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence.
+        Refresh statistics: ANALYZE events;
+        Raise per-column statistics target: ALTER TABLE events ALTER COLUMN <column> SET STATISTICS 1000;
+ANALYZE events;
+        Add extended statistics for correlated columns: CREATE STATISTICS <stats_name> (dependencies, ndistinct) ON <col_a>, <col_b> FROM events;
+ANALYZE events;
+        docs: https://www.postgresql.org/docs/current/planner-stats.html
+
+[WARNING] 50,000x row underestimate on users PGX_ROW_MISESTIMATE
+  What: Postgres estimated 1 rows but 50,000 were produced — a 50,000x underestimate on users.
+  Why:  The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).
+  Fix:  Refresh and sharpen statistics for users: run ANALYZE users, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly. Underestimates feeding a nested loop or hash join are the highest priority — fix these first.
+        - Refresh table statistics first; this alone often fixes the estimate.
+        - If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.
+        - If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence.
+        Refresh statistics: ANALYZE users;
+        Raise per-column statistics target: ALTER TABLE users ALTER COLUMN <column> SET STATISTICS 1000;
+ANALYZE users;
+        Add extended statistics for correlated columns: CREATE STATISTICS <stats_name> (dependencies, ndistinct) ON <col_a>, <col_b> FROM users;
+ANALYZE users;
+        docs: https://www.postgresql.org/docs/current/planner-stats.html
+
+Total execution time: 4.25 s
 "
 `;
 
@@ -568,6 +1369,70 @@ CREATE INDEX ON orders (<predicate columns>);
 "
 `;
 
+exports[`renderers (snapshot) > seq-scan-large.json → terminal 1`] = `
+"pg-explain report
+Verdict: 2 warnings, 2 notes — top cost: Seq Scan on orders (78% of time). Total 321.0 ms.
+
+Plan tree
+Aggregate ▇▇▁▁▁▁▁▁  rows=1 · self 70.5 ms (22%) · cache 2%
+└─ Seq Scan on orders ▇▇▇▇▇▇▁▁  rows=500,000 (est 1,000, 500× under) · self 250.0 ms (78%) · cache 2%
+
+Bottlenecks (by self time)
+  1. Seq Scan on orders — 250.0 ms (78%)
+  2. Aggregate — 70.5 ms (22%)
+
+Findings
+
+[WARNING] Sequential scan on orders (500,000 rows) PGX_SEQ_SCAN_LARGE
+  What: Postgres read orders sequentially, scanning roughly 500,000 rows.
+  Why:  A row filter ((status = 'shipped'::text)) is applied after reading every row, so no index narrowed the scan.
+  Fix:  Add an index covering the WHERE/JOIN predicate on orders so Postgres can skip non-matching rows. If the query genuinely needs most of the table, the seq scan is correct — reduce the rows touched instead.
+        - Identify the selective columns in the WHERE/JOIN predicate.
+        - Ensure they are sargable (no function-wrapping or implicit casts on the column).
+        - If selectivity is low, a partial index (WHERE …) may be better.
+        Index the predicate columns: CREATE INDEX ON orders (<predicate columns>) -- columns from the filter above;
+        docs: https://www.postgresql.org/docs/current/indexes-intro.html
+
+[WARNING] 500x row underestimate on orders PGX_ROW_MISESTIMATE
+  What: Postgres estimated 1,000 rows but 500,000 were produced — a 500x underestimate on orders.
+  Why:  The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).
+  Fix:  Refresh and sharpen statistics for orders: run ANALYZE orders, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly. Underestimates feeding a nested loop or hash join are the highest priority — fix these first.
+        - Refresh table statistics first; this alone often fixes the estimate.
+        - If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.
+        - If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence.
+        Refresh statistics: ANALYZE orders;
+        Raise per-column statistics target: ALTER TABLE orders ALTER COLUMN <column> SET STATISTICS 1000;
+ANALYZE orders;
+        Add extended statistics for correlated columns: CREATE STATISTICS <stats_name> (dependencies, ndistinct) ON <col_a>, <col_b> FROM orders;
+ANALYZE orders;
+        docs: https://www.postgresql.org/docs/current/planner-stats.html
+
+[NOTE] Low cache hit ratio at Aggregate (2.3%) PGX_LOW_CACHE_HIT
+  What: Aggregate served only 2.3% of its shared-buffer accesses from cache, reading 5,000 blk (39.1 MiB) from disk.
+  Why:  The pages this node needed were not resident in shared_buffers, so PostgreSQL had to read them from disk. On a first run this is an expected cold cache; if it persists, the working set is larger than the cache or the scan touches more pages than necessary.
+  Fix:  Re-run the query to check whether this is just a cold cache — the ratio should climb on a warm run. If it stays low, the working set exceeds shared_buffers: size shared_buffers/effective_cache_size to your RAM, or add a selective index on the scanned relation so far fewer pages are read.
+        - Run the same EXPLAIN (ANALYZE, BUFFERS) a second time; a much higher hit ratio means the first run was a cold cache and no action is needed.
+        - If the ratio stays low, check whether shared_buffers (and effective_cache_size for planner costing) are sized to the machine's RAM.
+        - If the node reads far more pages than the rows it returns, add a selective index so only matching pages are fetched.
+        Inspect current buffer-cache sizing: SHOW shared_buffers; SHOW effective_cache_size;
+        Reduce pages read with a selective index: CREATE INDEX ON <table> (<predicate columns>);
+        docs: https://www.postgresql.org/docs/current/runtime-config-resource.html#GUC-SHARED-BUFFERS
+
+[NOTE] Low cache hit ratio at Seq Scan on orders (2.3%) PGX_LOW_CACHE_HIT
+  What: Seq Scan on orders served only 2.3% of its shared-buffer accesses from cache, reading 5,000 blk (39.1 MiB) from disk.
+  Why:  The pages this node needed were not resident in shared_buffers, so PostgreSQL had to read them from disk. On a first run this is an expected cold cache; if it persists, the working set is larger than the cache or the scan touches more pages than necessary.
+  Fix:  Re-run the query to check whether this is just a cold cache — the ratio should climb on a warm run. If it stays low, the working set exceeds shared_buffers: size shared_buffers/effective_cache_size to your RAM, or add a selective index on orders so far fewer pages are read.
+        - Run the same EXPLAIN (ANALYZE, BUFFERS) a second time; a much higher hit ratio means the first run was a cold cache and no action is needed.
+        - If the ratio stays low, check whether shared_buffers (and effective_cache_size for planner costing) are sized to the machine's RAM.
+        - If the node reads far more pages than the rows it returns, add a selective index so only matching pages are fetched.
+        Inspect current buffer-cache sizing: SHOW shared_buffers; SHOW effective_cache_size;
+        Reduce pages read with a selective index: CREATE INDEX ON orders (<predicate columns>);
+        docs: https://www.postgresql.org/docs/current/runtime-config-resource.html#GUC-SHARED-BUFFERS
+
+Total execution time: 321.0 ms
+"
+`;
+
 exports[`renderers (snapshot) > seq-scan-large.json → text 1`] = `
 "pg-explain report
 Verdict: 2 warnings, 2 notes — top cost: Seq Scan on orders (78% of time). Total 321.0 ms.
@@ -629,6 +1494,420 @@ ANALYZE orders;
         docs: https://www.postgresql.org/docs/current/runtime-config-resource.html#GUC-SHARED-BUFFERS
 
 Total execution time: 321.0 ms
+"
+`;
+
+exports[`renderers (snapshot) > significant-jit.json → json 1`] = `
+"{
+  "schemaVersion": 1,
+  "verdict": "2 notes — top cost: Index Only Scan using events_created_at_idx on events (15% of time). Total 12.0 ms.",
+  "worstSeverity": "info",
+  "summary": {
+    "planningTimeMs": 0.6,
+    "executionTimeMs": 12,
+    "serializationTimeMs": null,
+    "hasAnalyze": true,
+    "hasBuffers": false,
+    "nodeCount": 2,
+    "findings": {
+      "error": 0,
+      "warn": 0,
+      "info": 2
+    }
+  },
+  "triggers": [],
+  "jit": {
+    "functions": 8,
+    "timing": {
+      "total": 9.5,
+      "generation": 1.2,
+      "inlining": 3.4,
+      "optimization": 3.6,
+      "emission": 1.3
+    }
+  },
+  "settings": null,
+  "diagnostics": [
+    {
+      "code": "PGX_ROW_MISESTIMATE",
+      "domain": "plan",
+      "severity": "info",
+      "title": "28,571x row overestimate on events",
+      "detail": "Postgres estimated 1,200,000 rows but 42 were produced — a 28,571x overestimate on events.",
+      "cause": "The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).",
+      "remediation": {
+        "summary": "Refresh and sharpen statistics for events: run ANALYZE events, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly.",
+        "steps": [
+          "Refresh table statistics first; this alone often fixes the estimate.",
+          "If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.",
+          "If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence."
+        ],
+        "commands": [
+          {
+            "label": "Refresh statistics",
+            "sql": "ANALYZE events;"
+          },
+          {
+            "label": "Raise per-column statistics target",
+            "sql": "ALTER TABLE events ALTER COLUMN <column> SET STATISTICS 1000;\\nANALYZE events;"
+          },
+          {
+            "label": "Add extended statistics for correlated columns",
+            "sql": "CREATE STATISTICS <stats_name> (dependencies, ndistinct) ON <col_a>, <col_b> FROM events;\\nANALYZE events;"
+          }
+        ]
+      },
+      "location": {
+        "kind": "node",
+        "nodeId": 1,
+        "nodeType": "Index Only Scan",
+        "relation": "events"
+      },
+      "docsUrl": "https://www.postgresql.org/docs/current/planner-stats.html",
+      "meta": {
+        "estimatedRows": 1200000,
+        "actualRows": 42,
+        "factor": 28571,
+        "direction": "over"
+      }
+    },
+    {
+      "code": "PGX_SIGNIFICANT_JIT",
+      "domain": "plan",
+      "severity": "info",
+      "title": "JIT compilation took 9.5 ms (79.2% of execution)",
+      "detail": "JIT spent 9.5 ms generating, optimizing, and emitting machine code, out of 12.0 ms total execution time. The compilation overhead outweighs the runtime it saved.",
+      "cause": "The plan's estimated cost crossed jit_above_cost, so Postgres JIT-compiled the query — but the query is too short for compilation to pay off, often because a row overestimate inflated the cost.",
+      "remediation": {
+        "summary": "Raise jit_above_cost (and jit_inline_above_cost / jit_optimize_above_cost) so short queries skip JIT, or disable JIT for this session with SET jit = off. Then investigate why the cost estimate is high enough to trigger JIT — frequently a row overestimate fixable with ANALYZE.",
+        "steps": [
+          "Confirm the query is consistently short-running before tuning — JIT pays off on long, CPU-bound queries.",
+          "Raise jit_above_cost above this plan's total cost so similar queries skip JIT entirely.",
+          "If only inlining/optimization are expensive, raise jit_inline_above_cost / jit_optimize_above_cost instead of disabling JIT.",
+          "Check the planner's row estimates against actuals — an overestimate that inflates cost is the usual reason a cheap query triggers JIT; run ANALYZE on the relations involved."
+        ],
+        "commands": [
+          {
+            "label": "Disable JIT for this session",
+            "sql": "SET jit = off;"
+          },
+          {
+            "label": "Raise the JIT cost thresholds",
+            "sql": "SET jit_above_cost = <above this plan's total cost>;\\nSET jit_inline_above_cost = <higher>;\\nSET jit_optimize_above_cost = <higher>;"
+          },
+          {
+            "label": "Refresh statistics if the cost is driven by a row overestimate",
+            "sql": "ANALYZE <table>;"
+          }
+        ]
+      },
+      "location": {
+        "kind": "node",
+        "nodeId": 0,
+        "nodeType": "Aggregate"
+      },
+      "docsUrl": "https://www.postgresql.org/docs/current/runtime-config-query.html#GUC-JIT-ABOVE-COST",
+      "meta": {
+        "jitMs": 10,
+        "jitPct": 79
+      }
+    }
+  ],
+  "bottlenecks": [
+    {
+      "id": 1,
+      "label": "Index Only Scan using events_created_at_idx on events",
+      "nodeType": "Index Only Scan",
+      "relation": "events",
+      "selfMs": 1.8,
+      "pctOfTotal": 15,
+      "totalRows": 42
+    },
+    {
+      "id": 0,
+      "label": "Aggregate",
+      "nodeType": "Aggregate",
+      "relation": null,
+      "selfMs": 0.5999999999999999,
+      "pctOfTotal": 4.999999999999999,
+      "totalRows": 1
+    }
+  ],
+  "stats": {
+    "byNodeType": [
+      {
+        "key": "Index Only Scan",
+        "count": 1,
+        "selfMs": 1.8,
+        "pctOfTotal": 15
+      },
+      {
+        "key": "Aggregate",
+        "count": 1,
+        "selfMs": 0.5999999999999999,
+        "pctOfTotal": 4.999999999999999
+      }
+    ],
+    "byRelation": [
+      {
+        "key": "events",
+        "count": 1,
+        "selfMs": 1.8,
+        "pctOfTotal": 15
+      }
+    ],
+    "byIndex": [
+      {
+        "key": "events_created_at_idx",
+        "count": 1,
+        "selfMs": 1.8,
+        "pctOfTotal": 15
+      }
+    ]
+  },
+  "plan": {
+    "id": 0,
+    "nodeType": "Aggregate",
+    "planRows": 1,
+    "planWidth": 8,
+    "startupCost": 120000,
+    "totalCost": 120000.01,
+    "actualRows": 1,
+    "actualLoops": 1,
+    "actualStartupTime": 2.3,
+    "actualTotalTime": 2.4,
+    "metrics": {
+      "totalRows": 1,
+      "inclusiveMs": 2.4,
+      "estimateFactor": 1,
+      "estimateDirection": "accurate",
+      "cacheHitRatio": null,
+      "selfMs": 0.5999999999999999,
+      "pctOfTotal": 4.999999999999999
+    },
+    "children": [
+      {
+        "id": 1,
+        "nodeType": "Index Only Scan",
+        "planRows": 1200000,
+        "parentRelationship": "Outer",
+        "relationName": "events",
+        "alias": "events",
+        "indexName": "events_created_at_idx",
+        "planWidth": 0,
+        "startupCost": 0.42,
+        "totalCost": 119000,
+        "actualRows": 42,
+        "actualLoops": 1,
+        "actualStartupTime": 0.05,
+        "actualTotalTime": 1.8,
+        "indexCond": "(created_at >= (now() - '00:05:00'::interval))",
+        "heapFetches": 0,
+        "metrics": {
+          "totalRows": 42,
+          "inclusiveMs": 1.8,
+          "estimateFactor": 28571.428571428572,
+          "estimateDirection": "over",
+          "cacheHitRatio": null,
+          "selfMs": 1.8,
+          "pctOfTotal": 15
+        },
+        "children": []
+      }
+    ]
+  }
+}"
+`;
+
+exports[`renderers (snapshot) > significant-jit.json → markdown 1`] = `
+"# pg-explain report
+
+> **Verdict:** 2 notes — top cost: Index Only Scan using events_created_at_idx on events (15% of time). Total 12.0 ms.
+
+## Summary
+
+| Metric | Value |
+| --- | --- |
+| Planning time | 0.600 ms |
+| Execution time | 12.0 ms |
+| Findings | 0 critical, 0 warning(s), 2 note(s) |
+
+## Plan tree
+
+\`\`\`
+Aggregate  —  rows=1 · self 0.600 ms (5%)
+└─ Index Only Scan using events_created_at_idx on events  —  rows=42 (est 1,200,000, 28571× over) · self 1.8 ms (15%)
+\`\`\`
+
+## Bottlenecks (by self time)
+
+| # | Node | Self time | % of total | Rows |
+| --- | --- | --- | --- | --- |
+| 1 | Index Only Scan using events_created_at_idx on events | 1.8 ms | 15.0% | 42 |
+| 2 | Aggregate | 0.600 ms | 5.0% | 1 |
+
+## Findings
+
+### 🔵 Note — 28,571x row overestimate on events
+
+\`PGX_ROW_MISESTIMATE\`
+
+**What:** Postgres estimated 1,200,000 rows but 42 were produced — a 28,571x overestimate on events.
+
+**Why:** The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).
+
+**Fix:** Refresh and sharpen statistics for events: run ANALYZE events, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly.
+
+- Refresh table statistics first; this alone often fixes the estimate.
+- If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.
+- If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence.
+
+_Refresh statistics:_
+\`\`\`sql
+ANALYZE events;
+\`\`\`
+
+_Raise per-column statistics target:_
+\`\`\`sql
+ALTER TABLE events ALTER COLUMN <column> SET STATISTICS 1000;
+ANALYZE events;
+\`\`\`
+
+_Add extended statistics for correlated columns:_
+\`\`\`sql
+CREATE STATISTICS <stats_name> (dependencies, ndistinct) ON <col_a>, <col_b> FROM events;
+ANALYZE events;
+\`\`\`
+
+📖 [PostgreSQL docs](https://www.postgresql.org/docs/current/planner-stats.html)
+
+### 🔵 Note — JIT compilation took 9.5 ms (79.2% of execution)
+
+\`PGX_SIGNIFICANT_JIT\`
+
+**What:** JIT spent 9.5 ms generating, optimizing, and emitting machine code, out of 12.0 ms total execution time. The compilation overhead outweighs the runtime it saved.
+
+**Why:** The plan's estimated cost crossed jit_above_cost, so Postgres JIT-compiled the query — but the query is too short for compilation to pay off, often because a row overestimate inflated the cost.
+
+**Fix:** Raise jit_above_cost (and jit_inline_above_cost / jit_optimize_above_cost) so short queries skip JIT, or disable JIT for this session with SET jit = off. Then investigate why the cost estimate is high enough to trigger JIT — frequently a row overestimate fixable with ANALYZE.
+
+- Confirm the query is consistently short-running before tuning — JIT pays off on long, CPU-bound queries.
+- Raise jit_above_cost above this plan's total cost so similar queries skip JIT entirely.
+- If only inlining/optimization are expensive, raise jit_inline_above_cost / jit_optimize_above_cost instead of disabling JIT.
+- Check the planner's row estimates against actuals — an overestimate that inflates cost is the usual reason a cheap query triggers JIT; run ANALYZE on the relations involved.
+
+_Disable JIT for this session:_
+\`\`\`sql
+SET jit = off;
+\`\`\`
+
+_Raise the JIT cost thresholds:_
+\`\`\`sql
+SET jit_above_cost = <above this plan's total cost>;
+SET jit_inline_above_cost = <higher>;
+SET jit_optimize_above_cost = <higher>;
+\`\`\`
+
+_Refresh statistics if the cost is driven by a row overestimate:_
+\`\`\`sql
+ANALYZE <table>;
+\`\`\`
+
+📖 [PostgreSQL docs](https://www.postgresql.org/docs/current/runtime-config-query.html#GUC-JIT-ABOVE-COST)
+"
+`;
+
+exports[`renderers (snapshot) > significant-jit.json → terminal 1`] = `
+"pg-explain report
+Verdict: 2 notes — top cost: Index Only Scan using events_created_at_idx on events (15% of time). Total 12.0 ms.
+
+Plan tree
+Aggregate ▁▁▁▁▁▁▁▁  rows=1 · self 0.600 ms (5%)
+└─ Index Only Scan using events_created_at_idx on events ▇▁▁▁▁▁▁▁  rows=42 (est 1,200,000, 28571× over) · self 1.8 ms (15%)
+
+Bottlenecks (by self time)
+  1. Index Only Scan using events_created_at_idx on events — 1.8 ms (15%)
+  2. Aggregate — 0.600 ms (5%)
+
+Findings
+
+[NOTE] 28,571x row overestimate on events PGX_ROW_MISESTIMATE
+  What: Postgres estimated 1,200,000 rows but 42 were produced — a 28,571x overestimate on events.
+  Why:  The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).
+  Fix:  Refresh and sharpen statistics for events: run ANALYZE events, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly.
+        - Refresh table statistics first; this alone often fixes the estimate.
+        - If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.
+        - If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence.
+        Refresh statistics: ANALYZE events;
+        Raise per-column statistics target: ALTER TABLE events ALTER COLUMN <column> SET STATISTICS 1000;
+ANALYZE events;
+        Add extended statistics for correlated columns: CREATE STATISTICS <stats_name> (dependencies, ndistinct) ON <col_a>, <col_b> FROM events;
+ANALYZE events;
+        docs: https://www.postgresql.org/docs/current/planner-stats.html
+
+[NOTE] JIT compilation took 9.5 ms (79.2% of execution) PGX_SIGNIFICANT_JIT
+  What: JIT spent 9.5 ms generating, optimizing, and emitting machine code, out of 12.0 ms total execution time. The compilation overhead outweighs the runtime it saved.
+  Why:  The plan's estimated cost crossed jit_above_cost, so Postgres JIT-compiled the query — but the query is too short for compilation to pay off, often because a row overestimate inflated the cost.
+  Fix:  Raise jit_above_cost (and jit_inline_above_cost / jit_optimize_above_cost) so short queries skip JIT, or disable JIT for this session with SET jit = off. Then investigate why the cost estimate is high enough to trigger JIT — frequently a row overestimate fixable with ANALYZE.
+        - Confirm the query is consistently short-running before tuning — JIT pays off on long, CPU-bound queries.
+        - Raise jit_above_cost above this plan's total cost so similar queries skip JIT entirely.
+        - If only inlining/optimization are expensive, raise jit_inline_above_cost / jit_optimize_above_cost instead of disabling JIT.
+        - Check the planner's row estimates against actuals — an overestimate that inflates cost is the usual reason a cheap query triggers JIT; run ANALYZE on the relations involved.
+        Disable JIT for this session: SET jit = off;
+        Raise the JIT cost thresholds: SET jit_above_cost = <above this plan's total cost>;
+SET jit_inline_above_cost = <higher>;
+SET jit_optimize_above_cost = <higher>;
+        Refresh statistics if the cost is driven by a row overestimate: ANALYZE <table>;
+        docs: https://www.postgresql.org/docs/current/runtime-config-query.html#GUC-JIT-ABOVE-COST
+
+Total execution time: 12.0 ms
+"
+`;
+
+exports[`renderers (snapshot) > significant-jit.json → text 1`] = `
+"pg-explain report
+Verdict: 2 notes — top cost: Index Only Scan using events_created_at_idx on events (15% of time). Total 12.0 ms.
+
+Plan tree
+Aggregate  rows=1 · self 0.600 ms (5%)
+\`- Index Only Scan using events_created_at_idx on events  rows=42 (est 1,200,000, 28571× over) · self 1.8 ms (15%)
+
+Bottlenecks (by self time)
+  1. Index Only Scan using events_created_at_idx on events — 1.8 ms (15%)
+  2. Aggregate — 0.600 ms (5%)
+
+Findings
+
+[NOTE] 28,571x row overestimate on events PGX_ROW_MISESTIMATE
+  What: Postgres estimated 1,200,000 rows but 42 were produced — a 28,571x overestimate on events.
+  Why:  The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).
+  Fix:  Refresh and sharpen statistics for events: run ANALYZE events, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly.
+        - Refresh table statistics first; this alone often fixes the estimate.
+        - If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.
+        - If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence.
+        Refresh statistics: ANALYZE events;
+        Raise per-column statistics target: ALTER TABLE events ALTER COLUMN <column> SET STATISTICS 1000;
+ANALYZE events;
+        Add extended statistics for correlated columns: CREATE STATISTICS <stats_name> (dependencies, ndistinct) ON <col_a>, <col_b> FROM events;
+ANALYZE events;
+        docs: https://www.postgresql.org/docs/current/planner-stats.html
+
+[NOTE] JIT compilation took 9.5 ms (79.2% of execution) PGX_SIGNIFICANT_JIT
+  What: JIT spent 9.5 ms generating, optimizing, and emitting machine code, out of 12.0 ms total execution time. The compilation overhead outweighs the runtime it saved.
+  Why:  The plan's estimated cost crossed jit_above_cost, so Postgres JIT-compiled the query — but the query is too short for compilation to pay off, often because a row overestimate inflated the cost.
+  Fix:  Raise jit_above_cost (and jit_inline_above_cost / jit_optimize_above_cost) so short queries skip JIT, or disable JIT for this session with SET jit = off. Then investigate why the cost estimate is high enough to trigger JIT — frequently a row overestimate fixable with ANALYZE.
+        - Confirm the query is consistently short-running before tuning — JIT pays off on long, CPU-bound queries.
+        - Raise jit_above_cost above this plan's total cost so similar queries skip JIT entirely.
+        - If only inlining/optimization are expensive, raise jit_inline_above_cost / jit_optimize_above_cost instead of disabling JIT.
+        - Check the planner's row estimates against actuals — an overestimate that inflates cost is the usual reason a cheap query triggers JIT; run ANALYZE on the relations involved.
+        Disable JIT for this session: SET jit = off;
+        Raise the JIT cost thresholds: SET jit_above_cost = <above this plan's total cost>;
+SET jit_inline_above_cost = <higher>;
+SET jit_optimize_above_cost = <higher>;
+        Refresh statistics if the cost is driven by a row overestimate: ANALYZE <table>;
+        docs: https://www.postgresql.org/docs/current/runtime-config-query.html#GUC-JIT-ABOVE-COST
+
+Total execution time: 12.0 ms
 "
 `;
 
@@ -1029,6 +2308,62 @@ ANALYZE <relation>;
 "
 `;
 
+exports[`renderers (snapshot) > sort-spill-disk.json → terminal 1`] = `
+"pg-explain report
+Verdict: 2 warnings, 1 note — top cost: Sort (57% of time). Total 982.3 ms.
+
+Plan tree
+Limit ▁▁▁▁▁▁▁▁  rows=100 · self 0.100 ms
+└─ Sort ▇▇▇▇▇▁▁▁  rows=100 (est 2,000,000, 20000× over) · self 560.5 ms (57%)
+   └─ Seq Scan on events ▇▇▇▁▁▁▁▁  rows=2,000,000 · self 420.0 ms (43%)
+
+Bottlenecks (by self time)
+  1. Sort — 560.5 ms (57%)
+  2. Seq Scan on events — 420.0 ms (43%)
+  3. Limit — 0.100 ms (0%)
+
+Findings
+
+[WARNING] Sequential scan on events (2,000,000 rows) PGX_SEQ_SCAN_LARGE
+  What: Postgres read events sequentially, scanning roughly 2,000,000 rows.
+  Why:  No index condition narrowed the scan, so the whole relation was read.
+  Fix:  Add an index covering the WHERE/JOIN predicate on events so Postgres can skip non-matching rows. If the query genuinely needs most of the table, the seq scan is correct — reduce the rows touched instead.
+        - Identify the selective columns in the WHERE/JOIN predicate.
+        - Ensure they are sargable (no function-wrapping or implicit casts on the column).
+        - If selectivity is low, a partial index (WHERE …) may be better.
+        Index the predicate columns: CREATE INDEX ON events (<predicate columns>);
+        docs: https://www.postgresql.org/docs/current/indexes-intro.html
+
+[WARNING] Sort spilled to disk using 180.0 MiB of temp space PGX_SORT_SPILL_DISK
+  What: The Sort node ran an external merge sort on disk (external merge) using 180.0 MiB of temp space, because the data exceeded work_mem.
+  Why:  work_mem was too small to hold the sort set, so Postgres wrote sorted runs to temporary files and merged them — adding temp-file I/O that an in-memory sort avoids.
+  Fix:  Raise work_mem for this query so the sort stays in memory, e.g. SET work_mem = '400MB' at session or role scope (do NOT raise it globally without accounting for max_connections — each connection can allocate work_mem several times over). Alternatively, add an index on (events.created_at DESC, events.user_id) so rows arrive pre-sorted and the Sort node disappears.
+        - Set work_mem at session or role scope for this workload, not cluster-wide.
+        - Size it above the spilled footprint (~180.0 MiB); 400MB leaves headroom.
+        - Or add an index on (events.created_at DESC, events.user_id) so the sort is satisfied by an ordered scan and removed entirely.
+        Raise work_mem for this session: SET work_mem = '400MB';
+        Or set it per role: ALTER ROLE <role> SET work_mem = '400MB';
+        Or add an index matching the sort key: CREATE INDEX ON <table> (events.created_at DESC, events.user_id);
+        docs: https://www.postgresql.org/docs/current/runtime-config-resource.html#GUC-WORK-MEM
+
+[NOTE] 20,000x row overestimate PGX_ROW_MISESTIMATE
+  What: Postgres estimated 2,000,000 rows but 100 were produced — a 20,000x overestimate.
+  Why:  The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).
+  Fix:  Refresh and sharpen statistics for the underlying table: run ANALYZE <relation>, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly.
+        - Refresh table statistics first; this alone often fixes the estimate.
+        - If the column has a skewed/uneven distribution, raise its statistics target and re-ANALYZE.
+        - If the predicate spans multiple correlated columns, create extended statistics so the planner stops assuming independence.
+        Refresh statistics: ANALYZE <relation>;
+        Raise per-column statistics target: ALTER TABLE <relation> ALTER COLUMN <column> SET STATISTICS 1000;
+ANALYZE <relation>;
+        Add extended statistics for correlated columns: CREATE STATISTICS <stats_name> (dependencies, ndistinct) ON <col_a>, <col_b> FROM <relation>;
+ANALYZE <relation>;
+        docs: https://www.postgresql.org/docs/current/planner-stats.html
+
+Total execution time: 982.3 ms
+"
+`;
+
 exports[`renderers (snapshot) > sort-spill-disk.json → text 1`] = `
 "pg-explain report
 Verdict: 2 warnings, 1 note — top cost: Sort (57% of time). Total 982.3 ms.
@@ -1082,5 +2417,62 @@ ANALYZE <relation>;
         docs: https://www.postgresql.org/docs/current/planner-stats.html
 
 Total execution time: 982.3 ms
+"
+`;
+
+exports[`renderers (snapshot) > tldr trims the plan tree but keeps findings 1`] = `
+"# pg-explain report
+
+> **Verdict:** 2 warnings, 2 notes — top cost: Seq Scan on orders (78% of time). Total 321.0 ms.
+
+## Summary
+
+| Metric | Value |
+| --- | --- |
+| Planning time | 0.420 ms |
+| Execution time | 321.0 ms |
+| Findings | 0 critical, 2 warning(s), 2 note(s) |
+
+## Findings
+
+### 🟠 Warning — Sequential scan on orders (500,000 rows)
+
+\`PGX_SEQ_SCAN_LARGE\`
+
+**What:** Postgres read orders sequentially, scanning roughly 500,000 rows.
+
+**Why:** A row filter ((status = 'shipped'::text)) is applied after reading every row, so no index narrowed the scan.
+
+**Fix:** Add an index covering the WHERE/JOIN predicate on orders so Postgres can skip non-matching rows. If the query genuinely needs most of the table, the seq scan is correct — reduce the rows touched instead.
+
+### 🟠 Warning — 500x row underestimate on orders
+
+\`PGX_ROW_MISESTIMATE\`
+
+**What:** Postgres estimated 1,000 rows but 500,000 were produced — a 500x underestimate on orders.
+
+**Why:** The planner's row estimate is based on statistics that are stale, missing, or too coarse for this predicate (e.g. correlated columns the planner treats as independent).
+
+**Fix:** Refresh and sharpen statistics for orders: run ANALYZE orders, raise per-column statistics targets on the predicate columns, and add extended statistics for correlated columns so the planner estimates rows correctly. Underestimates feeding a nested loop or hash join are the highest priority — fix these first.
+
+### 🔵 Note — Low cache hit ratio at Aggregate (2.3%)
+
+\`PGX_LOW_CACHE_HIT\`
+
+**What:** Aggregate served only 2.3% of its shared-buffer accesses from cache, reading 5,000 blk (39.1 MiB) from disk.
+
+**Why:** The pages this node needed were not resident in shared_buffers, so PostgreSQL had to read them from disk. On a first run this is an expected cold cache; if it persists, the working set is larger than the cache or the scan touches more pages than necessary.
+
+**Fix:** Re-run the query to check whether this is just a cold cache — the ratio should climb on a warm run. If it stays low, the working set exceeds shared_buffers: size shared_buffers/effective_cache_size to your RAM, or add a selective index on the scanned relation so far fewer pages are read.
+
+### 🔵 Note — Low cache hit ratio at Seq Scan on orders (2.3%)
+
+\`PGX_LOW_CACHE_HIT\`
+
+**What:** Seq Scan on orders served only 2.3% of its shared-buffer accesses from cache, reading 5,000 blk (39.1 MiB) from disk.
+
+**Why:** The pages this node needed were not resident in shared_buffers, so PostgreSQL had to read them from disk. On a first run this is an expected cold cache; if it persists, the working set is larger than the cache or the scan touches more pages than necessary.
+
+**Fix:** Re-run the query to check whether this is just a cold cache — the ratio should climb on a warm run. If it stays low, the working set exceeds shared_buffers: size shared_buffers/effective_cache_size to your RAM, or add a selective index on orders so far fewer pages are read.
 "
 `;
