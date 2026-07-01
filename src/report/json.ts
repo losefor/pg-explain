@@ -1,4 +1,4 @@
-import { executionMs } from "../core/metrics.ts";
+import { aggregateStats, executionMs } from "../core/metrics.ts";
 import type { AnalysisResult, PlanNode, Severity } from "../core/model.ts";
 import { flatten } from "../core/parse.ts";
 import { nodeLabel } from "./tree.ts";
@@ -42,6 +42,7 @@ export function buildReport(result: AnalysisResult): Record<string, unknown> {
         pctOfTotal: n.metrics.pctOfTotal ?? null,
         totalRows: n.metrics.totalRows ?? null,
       })),
+    stats: aggregateStats(tree),
     plan: serializeNode(tree.root),
   };
 }

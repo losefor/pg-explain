@@ -52,6 +52,25 @@ exports[`renderers (snapshot) > cost-only.json → json 1`] = `
     }
   ],
   "bottlenecks": [],
+  "stats": {
+    "byNodeType": [
+      {
+        "key": "Seq Scan",
+        "count": 1,
+        "selfMs": 0,
+        "pctOfTotal": 0
+      }
+    ],
+    "byRelation": [
+      {
+        "key": "events",
+        "count": 1,
+        "selfMs": 0,
+        "pctOfTotal": 0
+      }
+    ],
+    "byIndex": []
+  },
   "plan": {
     "id": 0,
     "nodeType": "Seq Scan",
@@ -321,6 +340,31 @@ exports[`renderers (snapshot) > seq-scan-large.json → json 1`] = `
       "totalRows": 1
     }
   ],
+  "stats": {
+    "byNodeType": [
+      {
+        "key": "Seq Scan",
+        "count": 1,
+        "selfMs": 250,
+        "pctOfTotal": 77.88161993769471
+      },
+      {
+        "key": "Aggregate",
+        "count": 1,
+        "selfMs": 70.5,
+        "pctOfTotal": 21.962616822429908
+      }
+    ],
+    "byRelation": [
+      {
+        "key": "orders",
+        "count": 1,
+        "selfMs": 250,
+        "pctOfTotal": 77.88161993769471
+      }
+    ],
+    "byIndex": []
+  },
   "plan": {
     "id": 0,
     "nodeType": "Aggregate",
@@ -742,6 +786,37 @@ exports[`renderers (snapshot) > sort-spill-disk.json → json 1`] = `
       "totalRows": 100
     }
   ],
+  "stats": {
+    "byNodeType": [
+      {
+        "key": "Sort",
+        "count": 1,
+        "selfMs": 560.5,
+        "pctOfTotal": 57.05996131528047
+      },
+      {
+        "key": "Seq Scan",
+        "count": 1,
+        "selfMs": 420,
+        "pctOfTotal": 42.75679527639214
+      },
+      {
+        "key": "Limit",
+        "count": 1,
+        "selfMs": 0.10000000000002274,
+        "pctOfTotal": 0.010180189351524253
+      }
+    ],
+    "byRelation": [
+      {
+        "key": "events",
+        "count": 1,
+        "selfMs": 420,
+        "pctOfTotal": 42.75679527639214
+      }
+    ],
+    "byIndex": []
+  },
   "plan": {
     "id": 0,
     "nodeType": "Limit",

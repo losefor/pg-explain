@@ -22,6 +22,18 @@ export interface PlanNode {
   children: PlanNode[];
 }
 
+export interface StatGroup {
+  key: string;
+  count: number;
+  selfMs: number;
+  pctOfTotal: number;
+}
+export interface PlanStats {
+  byNodeType: StatGroup[];
+  byRelation: StatGroup[];
+  byIndex: StatGroup[];
+}
+
 export interface Report {
   schemaVersion: number;
   verdict: string;
@@ -29,6 +41,7 @@ export interface Report {
   summary: { planningTimeMs: number | null; executionTimeMs: number | null; hasAnalyze: boolean; hasBuffers: boolean; nodeCount: number; findings: Record<Severity, number> };
   diagnostics: Diagnostic[];
   bottlenecks: { id: number; label: string; selfMs: number | null; pctOfTotal: number | null }[];
+  stats?: PlanStats;
   plan: PlanNode;
   server?: { major: number; omitted: string[] };
   runId?: string;

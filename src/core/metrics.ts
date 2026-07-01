@@ -86,6 +86,49 @@ export function bottlenecks(tree: PlanTree, n = 5): PlanNode[] {
     .slice(0, n);
 }
 
+export interface StatGroup {
+  key: string;
+  count: number;
+  /** Summed exclusive (self) time across nodes in this group. */
+  selfMs: number;
+  /** Share of total execution time. */
+  pctOfTotal: number;
+}
+export interface PlanStats {
+  byNodeType: StatGroup[];
+  byRelation: StatGroup[];
+  byIndex: StatGroup[];
+}
+
+/** Roll up exclusive time by node type / relation / index (pev2-style Stats tab). */
+export function aggregateStats(tree: PlanTree): PlanStats {
+  const total = executionMs(tree) ?? 0;
+  const groupBy = (keyOf: (n: PlanNode) => string | undefined): StatGroup[] => {
+    const acc = new Map<string, { count: number; selfMs: number }>();
+    for (const n of flatten(tree.root)) {
+      const key = keyOf(n);
+      if (!key) continue;
+      const e = acc.get(key) ?? { count: 0, selfMs: 0 };
+      e.count++;
+      e.selfMs += n.metrics.selfMs ?? 0;
+      acc.set(key, e);
+    }
+    return [...acc.entries()]
+      .map(([key, e]) => ({
+        key,
+        count: e.count,
+        selfMs: e.selfMs,
+        pctOfTotal: total > 0 ? (100 * e.selfMs) / total : 0,
+      }))
+      .sort((a, b) => b.selfMs - a.selfMs || b.count - a.count);
+  };
+  return {
+    byNodeType: groupBy((n) => n.nodeType),
+    byRelation: groupBy((n) => n.relationName),
+    byIndex: groupBy((n) => n.indexName),
+  };
+}
+
 /** A short human label for a node, e.g. "Seq Scan on orders". */
 export function nodeLabel(node: PlanNode): string {
   let label = node.nodeType;

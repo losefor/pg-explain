@@ -1,8 +1,9 @@
+import { Check, CheckCircle2, ChevronDown, ChevronRight, CornerDownRight, ExternalLink, Lock, Minus, Plus, Settings as SettingsIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { format as formatSqlText } from "sql-formatter";
 import { CodeEditor, type CodeEditorHandle } from "./components/CodeEditor.tsx";
-import { api, type ApiError, type ConnectionPublic, type Diagnostic, type DiffResult, type LiveLocks, type PlanNode, type RelationStat, type Report, type RunSummary, type ScriptAnalysis, type Settings, type Severity, type SigDelta, type TableInfo } from "./lib/api.ts";
+import { api, type ApiError, type ConnectionPublic, type Diagnostic, type DiffResult, type LiveLocks, type PlanNode, type PlanStats, type RelationStat, type Report, type RunSummary, type ScriptAnalysis, type Settings, type Severity, type SigDelta, type StatGroup, type TableInfo } from "./lib/api.ts";
 
 /** True when the SQL isn't a single plain SELECT — a DO block, multi-statement, or a write. */
 function isScripty(sql: string): boolean {
@@ -226,9 +227,9 @@ export function App() {
             type="button"
             title="Settings"
             onClick={async () => setSettings(await api.settings())}
-            className="text-xs rounded px-2 py-0.5 bg-secondary"
+            className="inline-flex items-center rounded px-2 py-1 bg-secondary"
           >
-            ⚙
+            <SettingsIcon className="size-4" />
           </button>
         </div>
         {diffMode && (
@@ -275,8 +276,8 @@ export function App() {
                 return (
                   <div key={key}>
                     <div className="flex items-center gap-1">
-                      <button type="button" onClick={() => setOpenTable(open ? null : key)} className="w-4 text-xs text-muted-foreground">
-                        {open ? "▾" : "▸"}
+                      <button type="button" onClick={() => setOpenTable(open ? null : key)} className="inline-flex w-4 justify-center text-muted-foreground">
+                        {open ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
                       </button>
                       <button
                         type="button"
@@ -393,8 +394,8 @@ export function App() {
               Format
             </button>
             {mode === "run" && (
-              <button type="button" onClick={checkLive} disabled={busy} className="rounded-md bg-secondary px-3 py-2 text-sm disabled:opacity-50">
-                🔒 Live locks
+              <button type="button" onClick={checkLive} disabled={busy} className="inline-flex items-center gap-1.5 rounded-md bg-secondary px-3 py-2 text-sm disabled:opacity-50">
+                <Lock className="size-4" /> Live locks
               </button>
             )}
             <span className="text-xs text-muted-foreground">
@@ -427,7 +428,7 @@ function cleanConn(c: Record<string, string>): Record<string, unknown> {
 }
 
 function Results({ report, stats }: { report: Report; stats: RelationStat[] }) {
-  const [tab, setTab] = useState<"findings" | "plan" | "tables" | "raw">("findings");
+  const [tab, setTab] = useState<"findings" | "plan" | "stats" | "tables" | "raw">("findings");
   const locks = report.diagnostics.filter((d) => isLock(d.code));
   const findings = report.diagnostics.filter((d) => !isLock(d.code));
 
@@ -448,8 +449,9 @@ function Results({ report, stats }: { report: Report; stats: RelationStat[] }) {
       <div className="flex gap-2 items-center">
         <Tab active={tab === "findings"} onClick={() => setTab("findings")}>Findings ({findings.length})</Tab>
         <Tab active={tab === "plan"} onClick={() => setTab("plan")}>Plan</Tab>
+        {report.stats && <Tab active={tab === "stats"} onClick={() => setTab("stats")}>Stats</Tab>}
         {stats.length > 0 && <Tab active={tab === "tables"} onClick={() => setTab("tables")}>Tables ({stats.length})</Tab>}
-        {locks.length > 0 && <Tab active={false} onClick={() => setTab("findings")}>🔒 {locks.length}</Tab>}
+        {locks.length > 0 && <Tab active={false} onClick={() => setTab("findings")}><span className="inline-flex items-center gap-1"><Lock className="size-3.5" /> {locks.length}</span></Tab>}
         <Tab active={tab === "raw"} onClick={() => setTab("raw")}>Raw JSON</Tab>
         <div className="ml-auto flex gap-1">
           <span className="text-xs text-muted-foreground self-center mr-1">Export</span>
@@ -473,10 +475,15 @@ function Results({ report, stats }: { report: Report; stats: RelationStat[] }) {
         <div className="space-y-3">
           {locks.map((d, i) => <FindingCard key={`l${i}`} d={d} lock />)}
           {findings.map((d, i) => <FindingCard key={`f${i}`} d={d} />)}
-          {report.diagnostics.length === 0 && <div className="text-sm text-muted-foreground">No findings — looks healthy. 🎉</div>}
+          {report.diagnostics.length === 0 && (
+            <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+              <CheckCircle2 className="size-4" style={{ color: "var(--sev-info)" }} /> No findings — looks healthy.
+            </div>
+          )}
         </div>
       )}
       {tab === "plan" && <div className="font-mono text-sm overflow-x-auto"><PlanTree node={report.plan} depth={0} /></div>}
+      {tab === "stats" && report.stats && <StatsTab stats={report.stats} hasAnalyze={report.summary.hasAnalyze} />}
       {tab === "tables" && (
         <div className="space-y-2">
           {stats.map((s) => (
@@ -496,6 +503,66 @@ function Results({ report, stats }: { report: Report; stats: RelationStat[] }) {
   );
 }
 
+function StatsTab({ stats, hasAnalyze }: { stats: PlanStats; hasAnalyze: boolean }) {
+  return (
+    <div className="grid gap-4 md:grid-cols-3">
+      <StatTable title="By node type" rows={stats.byNodeType} hasAnalyze={hasAnalyze} />
+      <StatTable title="By table" rows={stats.byRelation} hasAnalyze={hasAnalyze} />
+      <StatTable title="By index" rows={stats.byIndex} hasAnalyze={hasAnalyze} />
+    </div>
+  );
+}
+
+function StatTable({ title, rows, hasAnalyze }: { title: string; rows: StatGroup[]; hasAnalyze: boolean }) {
+  const [sort, setSort] = useState<"selfMs" | "count" | "key">(hasAnalyze ? "selfMs" : "count");
+  const sorted = [...rows].sort((a, b) =>
+    sort === "key" ? a.key.localeCompare(b.key) : sort === "count" ? b.count - a.count : b.selfMs - a.selfMs,
+  );
+  const maxMs = Math.max(...rows.map((r) => r.selfMs), 0.0001);
+  const head = (id: "selfMs" | "count" | "key", label: string, cls = "") => (
+    <button type="button" onClick={() => setSort(id)} className={`hover:text-foreground ${sort === id ? "text-foreground" : ""} ${cls}`}>
+      {label}
+    </button>
+  );
+  return (
+    <div className="rounded-lg border p-3 min-w-0" style={{ background: "var(--card)" }}>
+      <div className="text-xs uppercase tracking-wide text-muted-foreground mb-2">
+        {title} <span className="normal-case">· {rows.length}</span>
+      </div>
+      {rows.length === 0 ? (
+        <div className="text-sm text-muted-foreground">—</div>
+      ) : (
+        <table className="w-full text-sm text-muted-foreground">
+          <thead className="text-left text-xs">
+            <tr>
+              <th className="font-medium">{head("key", "Name")}</th>
+              <th className="font-medium text-right w-10">{head("count", "n")}</th>
+              {hasAnalyze && <th className="font-medium text-right">{head("selfMs", "self")}</th>}
+            </tr>
+          </thead>
+          <tbody>
+            {sorted.map((r) => (
+              <tr key={r.key} className="border-t border-border/60">
+                <td className="py-1 pr-2 text-foreground truncate max-w-[10rem]" title={r.key}>{r.key}</td>
+                <td className="py-1 text-right tabular-nums">{r.count}</td>
+                {hasAnalyze && (
+                  <td className="py-1 text-right tabular-nums whitespace-nowrap">
+                    <span
+                      className="inline-block align-middle mr-1 h-1.5 rounded"
+                      style={{ width: `${Math.round((r.selfMs / maxMs) * 36)}px`, background: "var(--sev-info)" }}
+                    />
+                    {r.selfMs.toFixed(1)}ms <span className="text-xs">({r.pctOfTotal.toFixed(0)}%)</span>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+    </div>
+  );
+}
+
 function FindingCard({ d, lock }: { d: Diagnostic; lock?: boolean }) {
   return (
     <div className="rounded-lg border p-3" style={{ background: "var(--card)" }}>
@@ -503,7 +570,7 @@ function FindingCard({ d, lock }: { d: Diagnostic; lock?: boolean }) {
         <span className="text-xs font-semibold px-2 py-0.5 rounded text-white" style={{ background: SEV_COLOR[d.severity] }}>
           {SEV_LABEL[d.severity]}
         </span>
-        {lock && <span className="text-xs px-2 py-0.5 rounded bg-secondary">🔒 lock</span>}
+        {lock && <span className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded bg-secondary"><Lock className="size-3" /> lock</span>}
         <span className="font-medium">{d.title}</span>
         <span className="text-xs text-muted-foreground ml-auto">{d.code}</span>
       </div>
@@ -513,7 +580,7 @@ function FindingCard({ d, lock }: { d: Diagnostic; lock?: boolean }) {
       {d.remediation.commands?.map((cmd, i) => (
         <pre key={i} className="text-xs bg-secondary rounded p-2 mt-2 overflow-x-auto">{cmd.sql ?? cmd.shell}</pre>
       ))}
-      {d.docsUrl && <a className="text-xs text-sev-info underline" href={d.docsUrl} target="_blank" rel="noreferrer">PostgreSQL docs ↗</a>}
+      {d.docsUrl && <a className="inline-flex items-center gap-1 text-xs text-sev-info underline" href={d.docsUrl} target="_blank" rel="noreferrer">PostgreSQL docs <ExternalLink className="size-3" /></a>}
     </div>
   );
 }
@@ -526,7 +593,7 @@ function PlanTree({ node, depth }: { node: PlanNode; depth: number }) {
   return (
     <div>
       <div style={{ paddingLeft: `${depth * 16}px` }}>
-        <span style={{ color: heat, fontWeight: heat ? 600 : 400 }}>{depth > 0 ? "└─ " : ""}{label}</span>
+        <span style={{ color: heat, fontWeight: heat ? 600 : 400 }}>{depth > 0 && <CornerDownRight className="inline size-3 mr-1 -translate-y-px text-muted-foreground" />}{label}</span>
         <span className="text-muted-foreground">
           {m.totalRows != null && `  rows=${m.totalRows.toLocaleString()}`}
           {m.estimateFactor != null && m.estimateFactor >= 2 && m.estimateDirection !== "accurate" && ` (${m.estimateFactor.toFixed(0)}× ${m.estimateDirection})`}
@@ -553,8 +620,8 @@ function ScriptResults({ script }: { script: ScriptAnalysis }) {
       </div>
       {script.units.map((u, i) => (
         <div key={`${u.label}-${i}`} className="space-y-2">
-          <div className="font-medium text-sm">
-            ▸ {u.label}
+          <div className="flex items-center gap-1 font-medium text-sm">
+            <ChevronRight className="size-4 shrink-0" /> {u.label}
             {u.loopNote && <span className="text-muted-foreground"> ({u.loopNote})</span>}
           </div>
           {u.status === "analyzed" && u.report ? (
@@ -643,7 +710,7 @@ function SettingsPanel({ settings, onClose }: { settings: Settings; onClose: () 
         <button type="button" onClick={save} className="rounded-md bg-primary text-primary-foreground px-4 py-2 text-sm font-medium">
           Save
         </button>
-        {saved && <span className="text-sm" style={{ color: "var(--sev-info)" }}>Saved ✓</span>}
+        {saved && <span className="inline-flex items-center gap-1 text-sm" style={{ color: "var(--sev-info)" }}><Check className="size-4" /> Saved</span>}
         <span className="text-xs text-muted-foreground">Per-rule enable/severity overrides are editable in the config file.</span>
       </div>
     </div>
@@ -687,13 +754,13 @@ function DiffPanel({ diff, onClose }: { diff: DiffResult; onClose: () => void })
       {diff.newFindings.length > 0 && (
         <div>
           <div className="text-sm font-medium mt-3 mb-1" style={{ color: "var(--sev-error)" }}>New findings</div>
-          {diff.newFindings.map((f, i) => <div key={i} className="text-sm">+ {f.title} <span className="text-xs text-muted-foreground">{f.code}</span></div>)}
+          {diff.newFindings.map((f, i) => <div key={i} className="flex items-center gap-1 text-sm"><Plus className="size-3.5 shrink-0" style={{ color: "var(--sev-error)" }} /> {f.title} <span className="text-xs text-muted-foreground">{f.code}</span></div>)}
         </div>
       )}
       {diff.resolvedFindings.length > 0 && (
         <div>
           <div className="text-sm font-medium mt-3 mb-1" style={{ color: "var(--sev-info)" }}>Resolved findings</div>
-          {diff.resolvedFindings.map((f, i) => <div key={i} className="text-sm">− {f.title} <span className="text-xs text-muted-foreground">{f.code}</span></div>)}
+          {diff.resolvedFindings.map((f, i) => <div key={i} className="flex items-center gap-1 text-sm"><Minus className="size-3.5 shrink-0" style={{ color: "var(--sev-info)" }} /> {f.title} <span className="text-xs text-muted-foreground">{f.code}</span></div>)}
         </div>
       )}
     </div>
