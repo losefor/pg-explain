@@ -1,5 +1,32 @@
 # Changelog
 
+## 0.3.0
+
+### Minor Changes
+
+- 5a1be66: - **New rule `PGX_MEMOIZE_EVICTIONS`**: flags a thrashing Memoize cache (evictions outpacing hits, or cache overflows) with a `work_mem` / `hash_mem_multiplier` remediation. The parser now normalizes Memoize cache counters (`Cache Hits/Misses/Evictions/Overflows`).
+  - **Studio component tests**: React Testing Library + happy-dom cover FindingCard, the side-by-side DiffPanel, and toasts; the web test project runs in CI via `pnpm test`.
+  - **Fix `PGX_CARTESIAN_PRODUCT` false positive**: the rule now looks through Memoize/Materialize to the real inner scan, so `Nested Loop → Memoize → Index Scan (parameterized)` is no longer misreported as a cross join.
+- 5a1be66: New analysis capabilities:
+
+  - **New rule `PGX_LIMIT_LARGE_OFFSET`**: flags OFFSET-style pagination where the plan generates and discards a large row prefix; recommends keyset pagination. Tunable via `limitDiscardRows`.
+  - **New check `PGX_STALE_STATISTICS`** (run path only): flags tables in the plan that were never analyzed or churned past `staleStatsModRatio` (default 20%) since their last ANALYZE — the usual root cause behind row misestimates.
+  - **New command `pg-explain locks`**: live lock-contention snapshot (who is blocked, by whom, for how long) with cancel/terminate remediation; `--fail-on-blocked` exits 1 for scripting; terminal and JSON output.
+  - **Studio: side-by-side plan diff** — the diff view now renders both plan trees with slower/faster/added/removed nodes highlighted.
+  - **Studio: shareable run URLs** — every stored run gets a `#run=<id>` deep link plus a copy-link button.
+  - Shell completion now includes the `locks` and `studio` subcommands.
+
+### Patch Changes
+
+- 5a1be66: Studio & DX quality pass:
+
+  - Studio: toast notifications — export failures and settings saves are no longer silent
+  - Studio: keyboard shortcuts (⌘/Ctrl+K focus editor, ⇧⌘/Ctrl+F format SQL, `?` help overlay) and ARIA tablist/landmark roles
+  - Studio: collapsible sidebar and history filter box
+  - Library: export `severityAtLeast` for CI-gate scripting; README library examples expanded
+  - Tests: snapshot coverage for all five render formats, command-flow tests for `analyze`/`diff` exit codes, and a new `web` vitest project covering studio helpers
+  - Dev: `pnpm dev:studio` runs core rebuild + API restart + Vite HMR in one terminal
+
 All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
